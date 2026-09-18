@@ -23,12 +23,20 @@ def _part_reference(work_order_number: str, part_id: int) -> str:
     return f"WO:{work_order_number}:PART:{part_id}"
 
 
+def _advance_plan(plan: MaintenancePlan, equipment: Equipment, service_date: date, service_meter: Decimal | None) -> None:
+    meter = service_meter if service_meter is not None else equipment.hour_meter
+    plan.last_service_date = service_date
+    plan.last_service_meter = meter
+    plan.next_due_date = service_date + timedelta(days=plan.interval_days) if plan.interval_days is not None else None
+    plan.next_due_meter = meter + plan.interval_hours if plan.interval_hours is not None and meter is not None else None
+    if meter is not None and (equipment.hour_meter is None or meter > equipment.hour_meter):
+        equipment.hour_meter = meter
+
+
 @router.post("/maintenance-plans", response_model=MaintenancePlanRead, status_code=status.HTTP_201_CREATED)
 def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depends(get_db)):
-    if db.get(Equipment, payload.equipment_id) is None:
-        raise HTTPException(404, "Equipment not found")
-    plan = MaintenancePlan(**payload.model_dump())
-    db.add(plan); db.commit(); db.refresh(plan); return plan
+    if db.get(Equipment, payload.equipment_id) is None: raise HTTPException(404, "Equipment not found")
+    plan = MaintenancePlan(**payload.model_dump()); db.add(plan); db.commit(); db.refresh(plan); return plan
 
 
 @router.get("/maintenance-plans", response_model=list[MaintenancePlanRead])
@@ -42,16 +50,9 @@ def complete_maintenance_service(plan_id: int, payload: MaintenanceServiceComple
     if plan is None: raise HTTPException(404, "Maintenance plan not found")
     equipment = db.get(Equipment, plan.equipment_id)
     if equipment is None: raise HTTPException(404, "Equipment not found")
-    if plan.next_due_date is not None and payload.service_date < plan.next_due_date:
-        raise HTTPException(400, "Service date cannot be before the scheduled due date")
-    if payload.service_meter is not None and plan.next_due_meter is not None and payload.service_meter < plan.next_due_meter:
-        raise HTTPException(400, "Service meter cannot be below the scheduled due meter")
-    meter = payload.service_meter if payload.service_meter is not None else equipment.hour_meter
-    plan.last_service_date = payload.service_date
-    plan.last_service_meter = meter
-    plan.next_due_date = payload.service_date + timedelta(days=plan.interval_days) if plan.interval_days is not None else None
-    plan.next_due_meter = meter + plan.interval_hours if plan.interval_hours is not None and meter is not None else None
-    if meter is not None and (equipment.hour_meter is None or meter > equipment.hour_meter): equipment.hour_meter = meter
+    if plan.next_due_date is not None and payload.service_date < plan.next_due_date: raise HTTPException(400, "Service date cannot be before the scheduled due date")
+    if payload.service_meter is not None and plan.next_due_meter is not None and payload.service_meter < plan.next_due_meter: raise HTTPException(400, "Service meter cannot be below the scheduled due meter")
+    _advance_plan(plan, equipment, payload.service_date, payload.service_meter)
     db.commit(); db.refresh(plan); return plan
 
 
@@ -72,7 +73,10 @@ def maintenance_plan_status(db: Session = Depends(get_db)):
 @router.post("/work-orders", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)
 def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     if db.get(Equipment, payload.equipment_id) is None: raise HTTPException(404, "Equipment not found")
-    if payload.maintenance_plan_id is not None and db.get(MaintenancePlan, payload.maintenance_plan_id) is None: raise HTTPException(404, "Maintenance plan not found")
+    if payload.maintenance_plan_id is not None:
+        plan = db.get(MaintenancePlan, payload.maintenance_plan_id)
+        if plan is None: raise HTTPException(404, "Maintenance plan not found")
+        if plan.equipment_id != payload.equipment_id: raise HTTPException(400, "Maintenance plan does not belong to this equipment")
     if db.scalar(select(WorkOrder).where(WorkOrder.work_order_number == payload.work_order_number)): raise HTTPException(409, "Work order number already exists")
     order = WorkOrder(**payload.model_dump()); db.add(order); db.commit(); db.refresh(order); return order
 
@@ -93,7 +97,15 @@ def get_work_order(work_order_id: int, db: Session = Depends(get_db)):
 def update_work_order(work_order_id: int, payload: WorkOrderUpdate, db: Session = Depends(get_db)):
     order = db.get(WorkOrder, work_order_id)
     if order is None: raise HTTPException(404, "Work order not found")
-    for key, value in payload.model_dump(exclude_unset=True).items(): setattr(order, key, value)
+    changes = payload.model_dump(exclude_unset=True)
+    was_completed = order.status == "completed"
+    for key, value in changes.items(): setattr(order, key, value)
+    if changes.get("status") == "completed" and not was_completed and order.maintenance_plan_id is not None:
+        plan = db.get(MaintenancePlan, order.maintenance_plan_id)
+        equipment = db.get(Equipment, order.equipment_id)
+        if plan is not None and equipment is not None:
+            service_date = order.completed_at.date() if order.completed_at is not None else date.today()
+            _advance_plan(plan, equipment, service_date, equipment.hour_meter)
     db.commit(); db.refresh(order); return order
 
 

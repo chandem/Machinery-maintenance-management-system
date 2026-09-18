@@ -22,6 +22,10 @@ from app.schemas.maintenance import (
 router = APIRouter(tags=["maintenance"])
 
 
+def _part_reference(work_order_number: str, part_id: int) -> str:
+    return f"WO:{work_order_number}:PART:{part_id}"
+
+
 @router.post("/maintenance-plans", response_model=MaintenancePlanRead, status_code=status.HTTP_201_CREATED)
 def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depends(get_db)):
     if db.get(Equipment, payload.equipment_id) is None:
@@ -96,7 +100,8 @@ def add_work_order_part(work_order_id: int, payload: WorkOrderPartCreate, db: Se
     inventory.quantity_on_hand -= payload.quantity
     item = WorkOrderPart(work_order_id=work_order_id, part_id=payload.part_id, quantity=payload.quantity, unit_cost=unit_cost)
     db.add(item)
-    db.add(PartTransaction(part_id=payload.part_id, transaction_type="out", quantity=payload.quantity, unit_cost=unit_cost, reference=order.work_order_number, notes=f"Issued to work order {order.work_order_number}"))
+    reference = _part_reference(order.work_order_number, payload.part_id)
+    db.add(PartTransaction(part_id=payload.part_id, transaction_type="out", quantity=payload.quantity, unit_cost=unit_cost, reference=reference, notes=f"Issued to work order {order.work_order_number}"))
     if unit_cost is not None:
         order.actual_cost = (order.actual_cost or 0) + payload.quantity * unit_cost
     db.commit()
@@ -119,22 +124,15 @@ def return_work_order_part(work_order_id: int, work_order_part_id: int, payload:
     item = db.get(WorkOrderPart, work_order_part_id)
     if item is None or item.work_order_id != work_order_id:
         raise HTTPException(404, "Work order part not found")
-    returned = db.scalar(
-        select(func.coalesce(func.sum(PartTransaction.quantity), 0))
-        .where(
-            PartTransaction.part_id == item.part_id,
-            PartTransaction.transaction_type == "in",
-            PartTransaction.reference == f"WO:{order.work_order_number}:PART:{item.part_id}",
-        )
-    ) or 0
-    issued = item.quantity
-    if payload.quantity > issued - returned:
+    reference = _part_reference(order.work_order_number, item.part_id)
+    returned = db.scalar(select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(PartTransaction.part_id == item.part_id, PartTransaction.transaction_type == "in", PartTransaction.reference == reference)) or 0
+    if payload.quantity > item.quantity - returned:
         raise HTTPException(400, "Return quantity exceeds remaining issued quantity")
     inventory = db.scalar(select(Inventory).where(Inventory.part_id == item.part_id))
     if inventory is None:
         raise HTTPException(404, "Inventory record not found")
     inventory.quantity_on_hand += payload.quantity
-    db.add(PartTransaction(part_id=item.part_id, transaction_type="in", quantity=payload.quantity, unit_cost=item.unit_cost, reference=f"WO:{order.work_order_number}:PART:{item.part_id}", notes=payload.notes or f"Returned from work order {order.work_order_number}"))
+    db.add(PartTransaction(part_id=item.part_id, transaction_type="in", quantity=payload.quantity, unit_cost=item.unit_cost, reference=reference, notes=payload.notes or f"Returned from work order {order.work_order_number}"))
     if item.unit_cost is not None:
         order.actual_cost = max((order.actual_cost or 0) - payload.quantity * item.unit_cost, 0)
     db.commit()

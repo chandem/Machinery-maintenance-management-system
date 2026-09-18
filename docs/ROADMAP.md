@@ -4,46 +4,49 @@
 - [x] Repository initialized
 - [x] Product scope defined
 - [x] Initial architecture documented
-- [ ] Backend application
-- [ ] Database schema
-- [ ] Authentication
+- [x] Backend application skeleton (FastAPI)
+- [x] Database schema (Alembic initial migration)
+- [ ] Authentication & role-based access
 - [ ] Frontend shell
-- [ ] CI pipeline
+- [x] CI pipeline (compile + pytest)
 
 ## Phase 2 — Equipment Management
-- [ ] Equipment CRUD
-- [ ] Categories
-- [ ] Locations
-- [ ] Equipment status
-- [ ] Meter readings
+- [x] Equipment CRUD
+- [x] Categories CRUD
+- [x] Locations CRUD
+- [x] Equipment status + search/filter
+- [x] Meter readings (create + list, auto-sync equipment meters)
+- [x] Operators CRUD
 - [ ] Equipment documents
 - [ ] QR identification
 
 ## Phase 3 — Maintenance
-- [ ] Maintenance plans
-- [ ] Maintenance schedules
-- [ ] Work orders
-- [ ] Maintenance history
-- [ ] Labor tracking
-- [ ] Parts consumption
-- [ ] Maintenance costs
+- [x] Maintenance plans
+- [x] Maintenance schedule status (due / overdue)
+- [x] Work orders + status lifecycle validation
+- [x] Parts consumption on work orders (issue / return)
+- [x] Labor tracking + cost roll-up
+- [x] Work-order cost endpoint
+- [ ] Task checklist on work orders
+- [ ] Maintenance history views
 
 ## Phase 4 — Operations
 - [ ] Inspections
 - [ ] Defect management
 - [ ] Fuel records
-- [ ] Operator assignment
+- [ ] Operator assignment history
 - [ ] Downtime tracking
 - [ ] Availability metrics
 
 ## Phase 5 — Inventory & Reporting
-- [ ] Spare-parts inventory
-- [ ] Suppliers
+- [x] Spare-parts inventory + suppliers
+- [x] Stock status / low-stock alerts
+- [x] Part transactions
+- [x] Dashboard summary KPIs
 - [ ] Purchase requests
-- [ ] Reorder alerts
 - [ ] Cost reports
 - [ ] Equipment utilization
-- [ ] Maintenance KPI dashboard
+- [ ] Full maintenance KPI dashboard
 
 ## Phase 6 — Advanced Intelligence
 - [ ] Notifications

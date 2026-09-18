@@ -1,7 +1,7 @@
 from sqlalchemy.orm import configure_mappers
 
 from app.core.database import Base
-from app.models import Equipment, MaintenancePlan, WorkOrder, WorkOrderTask, Supplier, Part, Inventory, PartTransaction
+from app.models import Equipment, MaintenancePlan, WorkOrder, WorkOrderTask, Supplier, Part, Inventory, PartTransaction, WorkOrderPart, WorkOrderLabor
 
 
 def test_model_mappers_configure():

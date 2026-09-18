@@ -19,5 +19,6 @@ def test_model_mappers_configure():
         "parts",
         "inventory",
         "part_transactions",
+          "work_order_labor",
     }
     assert expected.issubset(set(Base.metadata.tables))

@@ -25,6 +25,11 @@ class MaintenancePlanRead(MaintenancePlanCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MaintenanceServiceComplete(BaseModel):
+    service_date: date
+    service_meter: Optional[Decimal] = Field(default=None, ge=0)
+
+
 class MaintenanceScheduleStatusRead(BaseModel):
     id: int
     equipment_id: int

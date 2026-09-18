@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.equipment import Equipment
-from app.models.maintenance import MaintenancePlan, WorkOrder
+from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderPart
+from app.models.inventory import Inventory, Part
 from app.schemas.maintenance import (
     MaintenancePlanCreate,
     MaintenancePlanRead,
@@ -70,3 +71,35 @@ def update_work_order(work_order_id: int, payload: WorkOrderUpdate, db: Session 
     db.commit()
     db.refresh(order)
     return order
+
+
+@router.post("/work-orders/{work_order_id}/parts", response_model=WorkOrderPartRead, status_code=status.HTTP_201_CREATED)
+def add_work_order_part(work_order_id: int, payload: WorkOrderPartCreate, db: Session = Depends(get_db)):
+    order = db.get(WorkOrder, work_order_id)
+    if order is None:
+        raise HTTPException(404, "Work order not found")
+    part = db.get(Part, payload.part_id)
+    if part is None:
+        raise HTTPException(404, "Part not found")
+    inventory = db.scalar(select(Inventory).where(Inventory.part_id == payload.part_id))
+    if inventory is None or inventory.quantity_on_hand < payload.quantity:
+        raise HTTPException(400, "Insufficient stock")
+    existing = db.scalar(select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id, WorkOrderPart.part_id == payload.part_id))
+    if existing:
+        raise HTTPException(409, "Part already added to this work order")
+    unit_cost = payload.unit_cost if payload.unit_cost is not None else part.unit_cost
+    inventory.quantity_on_hand -= payload.quantity
+    item = WorkOrderPart(work_order_id=work_order_id, part_id=payload.part_id, quantity=payload.quantity, unit_cost=unit_cost)
+    db.add(item)
+    if unit_cost is not None:
+        current = order.actual_cost or 0
+        order.actual_cost = current + payload.quantity * unit_cost
+    db.commit(); db.refresh(item)
+    return item
+
+
+@router.get("/work-orders/{work_order_id}/parts", response_model=list[WorkOrderPartRead])
+def list_work_order_parts(work_order_id: int, db: Session = Depends(get_db)):
+    if db.get(WorkOrder, work_order_id) is None:
+        raise HTTPException(404, "Work order not found")
+    return db.scalars(select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id).order_by(WorkOrderPart.id)).all()

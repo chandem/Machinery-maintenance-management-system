@@ -56,6 +56,21 @@ class WorkOrder(Base):
     maintenance_plan: Mapped[Optional[MaintenancePlan]] = relationship(back_populates="work_orders")
     tasks: Mapped[list["WorkOrderTask"]] = relationship(back_populates="work_order", cascade="all, delete-orphan")
     parts: Mapped[list["WorkOrderPart"]] = relationship(back_populates="work_order", cascade="all, delete-orphan")
+    labor: Mapped[list["WorkOrderLabor"]] = relationship(back_populates="work_order", cascade="all, delete-orphan")
+
+
+class WorkOrderLabor(Base):
+    __tablename__ = "work_order_labor"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("work_orders.id", ondelete="CASCADE"), index=True)
+    worker_name: Mapped[str] = mapped_column(String(150))
+    role: Mapped[Optional[str]] = mapped_column(String(100))
+    hours: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+    hourly_rate: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    work_order: Mapped[WorkOrder] = relationship(back_populates="labor")
 
 
 class WorkOrderTask(Base):

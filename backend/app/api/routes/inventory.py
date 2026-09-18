@@ -7,6 +7,7 @@ from app.models import Inventory, Part, PartTransaction, Supplier
 from app.schemas.inventory import (
     InventoryCreate,
     InventoryRead,
+    InventoryStatusRead,
     PartCreate,
     PartRead,
     PartTransactionCreate,
@@ -68,6 +69,34 @@ def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db)):
 @router.get("/inventory", response_model=list[InventoryRead])
 def list_inventory(db: Session = Depends(get_db)):
     return db.scalars(select(Inventory).order_by(Inventory.id)).all()
+
+
+@router.get("/inventory/status", response_model=list[InventoryStatusRead])
+def inventory_status(low_stock_only: bool = False, db: Session = Depends(get_db)):
+    rows = db.execute(select(Inventory, Part).join(Part, Part.id == Inventory.part_id).order_by(Part.name)).all()
+    result = []
+    for inventory, part in rows:
+        if inventory.quantity_on_hand <= 0:
+            stock_status = "out_of_stock"
+        elif inventory.quantity_on_hand <= part.reorder_level:
+            stock_status = "low_stock"
+        else:
+            stock_status = "ok"
+        if low_stock_only and stock_status == "ok":
+            continue
+        result.append(
+            InventoryStatusRead(
+                id=inventory.id,
+                part_id=part.id,
+                part_number=part.part_number,
+                part_name=part.name,
+                quantity_on_hand=inventory.quantity_on_hand,
+                reorder_level=part.reorder_level,
+                status=stock_status,
+                location=inventory.location,
+            )
+        )
+    return result
 
 
 @router.post("/inventory/transactions", response_model=PartTransactionRead, status_code=status.HTTP_201_CREATED)

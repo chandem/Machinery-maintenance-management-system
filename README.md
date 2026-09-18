@@ -8,9 +8,13 @@ A web-based system for managing construction and industrial machinery, maintenan
 docker compose up --build
 ```
 
-API: http://localhost:8000  ·  Docs: http://localhost:8000/docs
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:5173 |
+| **API** | http://localhost:8000 |
+| **API docs** | http://localhost:8000/docs |
 
-Then register the first user (becomes **admin** automatically):
+Register the first user in the UI (becomes **admin**), or via API:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/auth/register \
@@ -18,14 +22,9 @@ curl -X POST http://localhost:8000/api/v1/auth/register \
   -d '{"email":"admin@example.com","full_name":"Admin","password":"secret123"}'
 ```
 
-Login (OAuth2 form or JSON):
+## Local development
 
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -d "username=admin@example.com&password=secret123"
-```
-
-## Local (without Docker)
+### Backend
 
 ```bash
 cd backend
@@ -37,69 +36,35 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-## Current API capabilities (v0.3)
+### Frontend
 
-| Area | Endpoints |
-|------|-----------|
-| **Health** | `GET /health` |
-| **Auth** | `POST /auth/register`, `/auth/login`, `/auth/login/json`, `GET /auth/me`, user list/update (admin) |
-| **Dashboard** | `GET /api/v1/dashboard/summary` |
-| **Equipment** | CRUD + search/filter + **pagination** |
-| **Categories / Locations / Operators** | Create + list (+ operator update) |
-| **Meter readings** | Create + paginated list |
-| **Maintenance plans** | Create, paginated list, complete service, schedule status |
-| **Work orders** | Create, paginated list, status lifecycle, parts, labor, cost |
-| **Inventory** | Suppliers, parts, stock, transactions (paginated where useful) |
-
-### Pagination
-
-List endpoints that return collections use:
-
-```
-?page=1&page_size=20
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-Response shape:
+Vite proxies `/api` → `http://localhost:8000`.
 
-```json
-{
-  "items": [ ... ],
-  "total": 42,
-  "page": 1,
-  "page_size": 20,
-  "pages": 3
-}
-```
+## Stack
 
-### Roles
+- **Backend:** FastAPI, SQLAlchemy, Alembic, PostgreSQL, JWT auth
+- **Frontend:** React 18, TypeScript, Vite, React Router
 
-`admin` · `manager` · `technician` · `viewer`  
-First registered user is promoted to **admin**. Auth is available; most business routes are still open so you can explore without a token. Protect them with `Depends(get_current_user)` when ready.
+## Current capabilities (v0.3 + frontend shell)
 
-### Work-order status lifecycle
+### API
+Auth, dashboard summary, equipment (CRUD + filters + pagination), categories/locations/operators, meter readings, maintenance plans & schedule status, work orders (lifecycle, parts, labor, cost), inventory.
 
-```
-Draft → Scheduled → In Progress → Completed → Verified → Closed
-                 ↘ cancelled at most stages
-```
-
-## Architecture
-
-```
-Frontend (React/TypeScript)   ← planned
-        |
-        v
-REST API (FastAPI/Python)
-        |
-        +---- PostgreSQL
-        +---- File/Object Storage
-        +---- Background Jobs
-        |
-        +---- Future: IoT / GPS / Telematics / ML
-```
+### UI
+- Login / register
+- Dashboard KPIs + due/overdue plans
+- Equipment list (search, status filter, create, pagination)
+- Work orders list (status filter, pagination)
+- Maintenance schedule view
 
 ## Status
 
-Backend foundation complete through auth, pagination, equipment, maintenance, inventory, and dashboard. Frontend shell is next.
+Backend foundation + React shell are in place. Next: richer detail pages, inventory UI, and locking API routes behind auth.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).

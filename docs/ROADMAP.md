@@ -8,12 +8,12 @@
 - [x] Database schema (Alembic migrations)
 - [x] Authentication (JWT register/login, roles)
 - [x] Pagination on list endpoints
-- [x] Docker Compose (Postgres + API)
-- [ ] Frontend shell
+- [x] Docker Compose (Postgres + API + frontend)
+- [x] Frontend shell (React/TypeScript)
 - [x] CI pipeline (compile + pytest)
 
 ## Phase 2 — Equipment Management
-- [x] Equipment CRUD
+- [x] Equipment CRUD (API + basic UI list/create)
 - [x] Categories CRUD
 - [x] Locations CRUD
 - [x] Equipment status + search/filter
@@ -21,6 +21,7 @@
 - [x] Operators CRUD
 - [ ] Equipment documents
 - [ ] QR identification
+- [ ] Equipment detail page (UI)
 
 ## Phase 3 — Maintenance
 - [x] Maintenance plans
@@ -29,6 +30,8 @@
 - [x] Parts consumption on work orders (issue / return)
 - [x] Labor tracking + cost roll-up
 - [x] Work-order cost endpoint
+- [x] Work orders list (UI)
+- [ ] Work order detail + status transitions (UI)
 - [ ] Task checklist on work orders
 - [ ] Maintenance history views
 
@@ -44,7 +47,8 @@
 - [x] Spare-parts inventory + suppliers
 - [x] Stock status / low-stock alerts
 - [x] Part transactions
-- [x] Dashboard summary KPIs
+- [x] Dashboard summary KPIs (API + UI)
+- [ ] Inventory UI
 - [ ] Purchase requests
 - [ ] Cost reports
 - [ ] Equipment utilization

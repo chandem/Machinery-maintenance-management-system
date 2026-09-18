@@ -12,6 +12,10 @@ from app.schemas.maintenance import (
     WorkOrderCreate,
     WorkOrderRead,
     WorkOrderUpdate,
+    WorkOrderPartCreate,
+    WorkOrderPartRead,
+    WorkOrderLaborCreate,
+    WorkOrderLaborRead,
 )
 
 router = APIRouter(tags=["maintenance"])

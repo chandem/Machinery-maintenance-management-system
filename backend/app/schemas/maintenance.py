@@ -63,3 +63,14 @@ class WorkOrderRead(WorkOrderCreate):
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class WorkOrderPartCreate(BaseModel):
+    part_id: int
+    quantity: Decimal = Field(gt=0)
+    unit_cost: Optional[Decimal] = Field(default=None, ge=0)
+
+class WorkOrderPartRead(WorkOrderPartCreate):
+    id: int
+    work_order_id: int
+    model_config = ConfigDict(from_attributes=True)

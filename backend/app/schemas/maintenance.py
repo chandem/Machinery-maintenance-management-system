@@ -25,6 +25,18 @@ class MaintenancePlanRead(MaintenancePlanCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MaintenanceScheduleStatusRead(BaseModel):
+    id: int
+    equipment_id: int
+    equipment_name: str
+    asset_code: str
+    name: str
+    next_due_date: Optional[date]
+    next_due_meter: Optional[Decimal]
+    current_meter: Optional[Decimal]
+    status: str
+
+
 class WorkOrderCreate(BaseModel):
     work_order_number: str = Field(min_length=1, max_length=50)
     equipment_id: int

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.equipment import Equipment
 from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderPart, WorkOrderLabor
-from app.models.inventory import Inventory, Part
+from app.models.inventory import Inventory, Part, PartTransaction
 from app.schemas.maintenance import (
     MaintenancePlanCreate,
     MaintenancePlanRead,
@@ -95,10 +95,21 @@ def add_work_order_part(work_order_id: int, payload: WorkOrderPartCreate, db: Se
     inventory.quantity_on_hand -= payload.quantity
     item = WorkOrderPart(work_order_id=work_order_id, part_id=payload.part_id, quantity=payload.quantity, unit_cost=unit_cost)
     db.add(item)
+    db.add(
+        PartTransaction(
+            part_id=payload.part_id,
+            transaction_type="out",
+            quantity=payload.quantity,
+            unit_cost=unit_cost,
+            reference=order.work_order_number,
+            notes=f"Issued to work order {order.work_order_number}",
+        )
+    )
     if unit_cost is not None:
         current = order.actual_cost or 0
         order.actual_cost = current + payload.quantity * unit_cost
-    db.commit(); db.refresh(item)
+    db.commit()
+    db.refresh(item)
     return item
 
 
@@ -117,7 +128,8 @@ def add_work_order_labor(work_order_id: int, payload: WorkOrderLaborCreate, db: 
     item = WorkOrderLabor(work_order_id=work_order_id, **payload.model_dump())
     db.add(item)
     order.actual_cost = (order.actual_cost or 0) + payload.hours * payload.hourly_rate
-    db.commit(); db.refresh(item)
+    db.commit()
+    db.refresh(item)
     return item
 
 

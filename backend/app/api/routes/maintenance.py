@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,6 +12,7 @@ from app.models.inventory import Inventory, Part, PartTransaction
 from app.schemas.maintenance import (
     MaintenancePlanCreate,
     MaintenancePlanRead,
+    MaintenanceScheduleStatusRead,
     WorkOrderCreate,
     WorkOrderRead,
     WorkOrderUpdate,
@@ -43,6 +45,46 @@ def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depend
 @router.get("/maintenance-plans", response_model=list[MaintenancePlanRead])
 def list_maintenance_plans(db: Session = Depends(get_db)):
     return db.scalars(select(MaintenancePlan).order_by(MaintenancePlan.id.desc())).all()
+
+
+@router.get("/maintenance-plans/status", response_model=list[MaintenanceScheduleStatusRead])
+def maintenance_plan_status(db: Session = Depends(get_db)):
+    plans = db.execute(
+        select(MaintenancePlan, Equipment)
+        .join(Equipment, Equipment.id == MaintenancePlan.equipment_id)
+        .where(MaintenancePlan.active.is_(True))
+        .order_by(MaintenancePlan.next_due_date, MaintenancePlan.id)
+    ).all()
+    today = date.today()
+    result = []
+    for plan, equipment in plans:
+        date_due = plan.next_due_date is not None and plan.next_due_date <= today
+        meter_due = (
+            plan.next_due_meter is not None
+            and equipment.hour_meter is not None
+            and equipment.hour_meter >= plan.next_due_meter
+        )
+        if date_due or meter_due:
+            schedule_status = "overdue" if (
+                (plan.next_due_date is not None and plan.next_due_date < today)
+                or (plan.next_due_meter is not None and equipment.hour_meter is not None and equipment.hour_meter > plan.next_due_meter)
+            ) else "due"
+        else:
+            schedule_status = "scheduled"
+        result.append(
+            MaintenanceScheduleStatusRead(
+                id=plan.id,
+                equipment_id=equipment.id,
+                equipment_name=equipment.name,
+                asset_code=equipment.asset_code,
+                name=plan.name,
+                next_due_date=plan.next_due_date,
+                next_due_meter=plan.next_due_meter,
+                current_meter=equipment.hour_meter,
+                status=schedule_status,
+            )
+        )
+    return result
 
 
 @router.post("/work-orders", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)
@@ -97,31 +139,14 @@ def get_work_order_cost(work_order_id: int, db: Session = Depends(get_db)):
         if item.unit_cost is None:
             continue
         reference = _part_reference(order.work_order_number, item.part_id)
-        returned = db.scalar(
-            select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(
-                PartTransaction.part_id == item.part_id,
-                PartTransaction.transaction_type == "in",
-                PartTransaction.reference == reference,
-            )
-        ) or Decimal("0")
+        returned = db.scalar(select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(PartTransaction.part_id == item.part_id, PartTransaction.transaction_type == "in", PartTransaction.reference == reference)) or Decimal("0")
         used_quantity = max(item.quantity - returned, Decimal("0"))
         parts_cost += used_quantity * item.unit_cost
 
-    labor_cost = db.scalar(
-        select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(
-            WorkOrderLabor.work_order_id == work_order_id
-        )
-    ) or Decimal("0")
+    labor_cost = db.scalar(select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(WorkOrderLabor.work_order_id == work_order_id)) or Decimal("0")
     total_cost = parts_cost + labor_cost
 
-    return WorkOrderCostRead(
-        work_order_id=order.id,
-        estimated_cost=order.estimated_cost,
-        parts_cost=parts_cost,
-        labor_cost=labor_cost,
-        total_cost=total_cost,
-        recorded_actual_cost=order.actual_cost,
-    )
+    return WorkOrderCostRead(work_order_id=order.id, estimated_cost=order.estimated_cost, parts_cost=parts_cost, labor_cost=labor_cost, total_cost=total_cost, recorded_actual_cost=order.actual_cost)
 
 
 @router.post("/work-orders/{work_order_id}/parts", response_model=WorkOrderPartRead, status_code=status.HTTP_201_CREATED)

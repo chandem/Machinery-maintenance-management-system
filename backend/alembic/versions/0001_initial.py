@@ -10,6 +10,61 @@ depends_on = None
 
 
 def upgrade() -> None:
+
+
+    op.create_table(
+        "suppliers",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=150), nullable=False),
+        sa.Column("contact_person", sa.String(length=150), nullable=True),
+        sa.Column("phone", sa.String(length=50), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("name"),
+    )
+    op.create_index(op.f("ix_suppliers_name"), "suppliers", ["name"], unique=False)
+    op.create_table(
+        "parts",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("part_number", sa.String(length=80), nullable=False),
+        sa.Column("name", sa.String(length=200), nullable=False),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("unit", sa.String(length=30), nullable=False),
+        sa.Column("unit_cost", sa.Numeric(14, 2), nullable=True),
+        sa.Column("reorder_level", sa.Numeric(14, 2), nullable=False),
+        sa.Column("supplier_id", sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(["supplier_id"], ["suppliers.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("part_number"),
+    )
+    op.create_index(op.f("ix_parts_part_number"), "parts", ["part_number"], unique=False)
+    op.create_index(op.f("ix_parts_name"), "parts", ["name"], unique=False)
+    op.create_table(
+        "inventory",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("part_id", sa.Integer(), nullable=False),
+        sa.Column("quantity_on_hand", sa.Numeric(14, 2), nullable=False),
+        sa.Column("location", sa.String(length=150), nullable=True),
+        sa.ForeignKeyConstraint(["part_id"], ["parts.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("part_id"),
+    )
+    op.create_index(op.f("ix_inventory_part_id"), "inventory", ["part_id"], unique=False)
+    op.create_table(
+        "part_transactions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("part_id", sa.Integer(), nullable=False),
+        sa.Column("transaction_type", sa.String(length=20), nullable=False),
+        sa.Column("quantity", sa.Numeric(14, 2), nullable=False),
+        sa.Column("unit_cost", sa.Numeric(14, 2), nullable=True),
+        sa.Column("reference", sa.String(length=100), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.ForeignKeyConstraint(["part_id"], ["parts.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_part_transactions_part_id"), "part_transactions", ["part_id"], unique=False)
+    op.create_index(op.f("ix_part_transactions_transaction_type"), "part_transactions", ["transaction_type"], unique=False)
+
     op.create_table(
         "equipment_categories",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -143,6 +198,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_part_transactions_transaction_type"), table_name="part_transactions")
+    op.drop_index(op.f("ix_part_transactions_part_id"), table_name="part_transactions")
+    op.drop_table("part_transactions")
+    op.drop_index(op.f("ix_inventory_part_id"), table_name="inventory")
+    op.drop_table("inventory")
+    op.drop_index(op.f("ix_parts_name"), table_name="parts")
+    op.drop_index(op.f("ix_parts_part_number"), table_name="parts")
+    op.drop_table("parts")
+    op.drop_index(op.f("ix_suppliers_name"), table_name="suppliers")
+    op.drop_table("suppliers")
     op.drop_table("work_order_tasks")
     op.drop_table("work_orders")
     op.drop_table("maintenance_plans")

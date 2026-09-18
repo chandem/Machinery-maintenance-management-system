@@ -38,10 +38,10 @@ services:
     working_dir: /app
     ports:
       - "5173:5173"
-    # Empty VITE_API_BASE → browser uses relative /api via Vite proxy to host API
-    # For pure browser→API calls without proxy, set VITE_API_BASE=http://localhost:8000
     environment:
+      # Browser calls relative /api; Vite proxies to the API container
       VITE_API_BASE: ""
+      VITE_PROXY_TARGET: http://api:8000
     volumes:
       - ./frontend:/app
       - web_node_modules:/app/node_modules

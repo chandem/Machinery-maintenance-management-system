@@ -70,10 +70,16 @@ class WorkOrderPartCreate(BaseModel):
     quantity: Decimal = Field(gt=0)
     unit_cost: Optional[Decimal] = Field(default=None, ge=0)
 
+
 class WorkOrderPartRead(WorkOrderPartCreate):
     id: int
     work_order_id: int
     model_config = ConfigDict(from_attributes=True)
+
+
+class WorkOrderPartReturn(BaseModel):
+    quantity: Decimal = Field(gt=0)
+    notes: Optional[str] = None
 
 
 class WorkOrderLaborCreate(BaseModel):
@@ -82,6 +88,7 @@ class WorkOrderLaborCreate(BaseModel):
     hours: Decimal = Field(gt=0)
     hourly_rate: Decimal = Field(ge=0)
     notes: Optional[str] = None
+
 
 class WorkOrderLaborRead(WorkOrderLaborCreate):
     id: int

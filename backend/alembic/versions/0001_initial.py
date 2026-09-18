@@ -185,6 +185,20 @@ def upgrade() -> None:
     op.create_index("ix_work_orders_scheduled_date", "work_orders", ["scheduled_date"])
 
     op.create_table(
+        "work_order_labor",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("work_order_id", sa.Integer(), nullable=False),
+        sa.Column("worker_name", sa.String(length=150), nullable=False),
+        sa.Column("role", sa.String(length=100), nullable=True),
+        sa.Column("hours", sa.Numeric(8, 2), nullable=False),
+        sa.Column("hourly_rate", sa.Numeric(14, 2), nullable=False),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.ForeignKeyConstraint(["work_order_id"], ["work_orders.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_work_order_labor_work_order_id"), "work_order_labor", ["work_order_id"], unique=False)
+
+    op.create_table(
         "work_order_parts",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("work_order_id", sa.Integer(), nullable=False),
@@ -213,6 +227,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_work_order_labor_work_order_id"), table_name="work_order_labor")
+    op.drop_table("work_order_labor")
     op.drop_index(op.f("ix_work_order_parts_part_id"), table_name="work_order_parts")
     op.drop_index(op.f("ix_work_order_parts_work_order_id"), table_name="work_order_parts")
     op.drop_table("work_order_parts")

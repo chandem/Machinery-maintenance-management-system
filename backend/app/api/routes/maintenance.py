@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import Equipment
 from app.models.inventory import Inventory, Part, PartTransaction
 from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderLabor, WorkOrderPart
@@ -27,7 +28,6 @@ from app.schemas.maintenance import (
 
 router = APIRouter(tags=["Maintenance"])
 
-# Allowed status transitions (from -> to)
 WO_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"scheduled", "in_progress", "cancelled"},
     "scheduled": {"in_progress", "cancelled"},
@@ -86,10 +86,11 @@ def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depend
     return plan
 
 
-@router.get("/maintenance-plans", response_model=list[MaintenancePlanRead])
+@router.get("/maintenance-plans", response_model=Page[MaintenancePlanRead])
 def list_maintenance_plans(
     equipment_id: int | None = None,
     active_only: bool = False,
+    params: PageParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = select(MaintenancePlan).order_by(MaintenancePlan.id.desc())
@@ -97,7 +98,7 @@ def list_maintenance_plans(
         query = query.where(MaintenancePlan.equipment_id == equipment_id)
     if active_only:
         query = query.where(MaintenancePlan.active.is_(True))
-    return list(db.scalars(query).all())
+    return paginate(db, query, params, MaintenancePlanRead)
 
 
 @router.post("/maintenance-plans/{plan_id}/complete", response_model=MaintenancePlanRead)
@@ -191,11 +192,12 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
     return order
 
 
-@router.get("/work-orders", response_model=list[WorkOrderRead])
+@router.get("/work-orders", response_model=Page[WorkOrderRead])
 def list_work_orders(
     status_filter: str | None = None,
     equipment_id: int | None = None,
     priority: str | None = None,
+    params: PageParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = select(WorkOrder).order_by(WorkOrder.id.desc())
@@ -205,7 +207,7 @@ def list_work_orders(
         query = query.where(WorkOrder.equipment_id == equipment_id)
     if priority:
         query = query.where(WorkOrder.priority == priority)
-    return list(db.scalars(query).all())
+    return paginate(db, query, params, WorkOrderRead)
 
 
 @router.get("/work-orders/{work_order_id}", response_model=WorkOrderRead)
@@ -227,7 +229,6 @@ def update_work_order(
 
     if "status" in changes and changes["status"] is not None:
         _validate_status_transition(order.status, changes["status"])
-        # Auto-stamp timestamps on common transitions
         now = datetime.utcnow()
         new_status = changes["status"]
         if new_status == "in_progress" and order.started_at is None:

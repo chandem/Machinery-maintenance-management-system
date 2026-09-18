@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.pagination import Page, PageParams, paginate
 from app.models import Inventory, Part, PartTransaction, Supplier
 from app.schemas.inventory import (
     InventoryCreate,
@@ -16,7 +17,7 @@ from app.schemas.inventory import (
     SupplierRead,
 )
 
-router = APIRouter(tags=["inventory"])
+router = APIRouter(tags=["Inventory"])
 
 
 @router.post("/suppliers", response_model=SupplierRead, status_code=status.HTTP_201_CREATED)
@@ -32,7 +33,7 @@ def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db)):
 
 @router.get("/suppliers", response_model=list[SupplierRead])
 def list_suppliers(db: Session = Depends(get_db)):
-    return db.scalars(select(Supplier).order_by(Supplier.name)).all()
+    return list(db.scalars(select(Supplier).order_by(Supplier.name)).all())
 
 
 @router.post("/parts", response_model=PartRead, status_code=status.HTTP_201_CREATED)
@@ -48,9 +49,10 @@ def create_part(payload: PartCreate, db: Session = Depends(get_db)):
     return item
 
 
-@router.get("/parts", response_model=list[PartRead])
-def list_parts(db: Session = Depends(get_db)):
-    return db.scalars(select(Part).order_by(Part.name)).all()
+@router.get("/parts", response_model=Page[PartRead])
+def list_parts(params: PageParams = Depends(), db: Session = Depends(get_db)):
+    query = select(Part).order_by(Part.name)
+    return paginate(db, query, params, PartRead)
 
 
 @router.post("/inventory", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
@@ -66,9 +68,10 @@ def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db)):
     return item
 
 
-@router.get("/inventory", response_model=list[InventoryRead])
-def list_inventory(db: Session = Depends(get_db)):
-    return db.scalars(select(Inventory).order_by(Inventory.id)).all()
+@router.get("/inventory", response_model=Page[InventoryRead])
+def list_inventory(params: PageParams = Depends(), db: Session = Depends(get_db)):
+    query = select(Inventory).order_by(Inventory.id)
+    return paginate(db, query, params, InventoryRead)
 
 
 @router.get("/inventory/status", response_model=list[InventoryStatusRead])
@@ -121,9 +124,13 @@ def create_transaction(payload: PartTransactionCreate, db: Session = Depends(get
     return tx
 
 
-@router.get("/inventory/transactions", response_model=list[PartTransactionRead])
-def list_transactions(part_id: int | None = None, db: Session = Depends(get_db)):
-    query = select(PartTransaction)
+@router.get("/inventory/transactions", response_model=Page[PartTransactionRead])
+def list_transactions(
+    part_id: int | None = None,
+    params: PageParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    query = select(PartTransaction).order_by(PartTransaction.id.desc())
     if part_id is not None:
         query = query.where(PartTransaction.part_id == part_id)
-    return db.scalars(query.order_by(PartTransaction.id.desc())).all()
+    return paginate(db, query, params, PartTransactionRead)

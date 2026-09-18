@@ -5,8 +5,10 @@
 - [x] Product scope defined
 - [x] Initial architecture documented
 - [x] Backend application skeleton (FastAPI)
-- [x] Database schema (Alembic initial migration)
-- [ ] Authentication & role-based access
+- [x] Database schema (Alembic migrations)
+- [x] Authentication (JWT register/login, roles)
+- [x] Pagination on list endpoints
+- [x] Docker Compose (Postgres + API)
 - [ ] Frontend shell
 - [x] CI pipeline (compile + pytest)
 

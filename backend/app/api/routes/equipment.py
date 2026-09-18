@@ -1,10 +1,9 @@
-from decimal import Decimal
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import (
     Equipment,
     EquipmentCategory,
@@ -134,7 +133,6 @@ def create_meter_reading(payload: MeterReadingCreate, db: Session = Depends(get_
     reading = MeterReading(**payload.model_dump())
     db.add(reading)
 
-    # Keep equipment current meters in sync when a higher value is recorded
     if payload.reading_type == "hour_meter":
         if equipment.hour_meter is None or payload.reading_value > equipment.hour_meter:
             equipment.hour_meter = payload.reading_value
@@ -147,19 +145,19 @@ def create_meter_reading(payload: MeterReadingCreate, db: Session = Depends(get_
     return reading
 
 
-@router.get("/meter-readings", response_model=list[MeterReadingRead])
+@router.get("/meter-readings", response_model=Page[MeterReadingRead])
 def list_meter_readings(
     equipment_id: int | None = None,
     reading_type: str | None = None,
-    limit: int = Query(100, ge=1, le=500),
+    params: PageParams = Depends(),
     db: Session = Depends(get_db),
 ):
-    query = select(MeterReading).order_by(MeterReading.recorded_at.desc()).limit(limit)
+    query = select(MeterReading).order_by(MeterReading.recorded_at.desc())
     if equipment_id is not None:
         query = query.where(MeterReading.equipment_id == equipment_id)
     if reading_type is not None:
         query = query.where(MeterReading.reading_type == reading_type)
-    return list(db.scalars(query).all())
+    return paginate(db, query, params, MeterReadingRead)
 
 
 # ── Equipment CRUD ──────────────────────────────────────────────────────────
@@ -182,12 +180,13 @@ def create_equipment(payload: EquipmentCreate, db: Session = Depends(get_db)):
     return equipment
 
 
-@router.get("", response_model=list[EquipmentRead])
+@router.get("", response_model=Page[EquipmentRead])
 def list_equipment(
     status_filter: str | None = Query(None, alias="status"),
     search: str | None = None,
     category_id: int | None = None,
     location_id: int | None = None,
+    params: PageParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = select(Equipment).order_by(Equipment.id)
@@ -207,7 +206,7 @@ def list_equipment(
                 Equipment.plate_number.ilike(term),
             )
         )
-    return list(db.scalars(query).all())
+    return paginate(db, query, params, EquipmentRead)
 
 
 @router.get("/{equipment_id}", response_model=EquipmentRead)
@@ -218,7 +217,7 @@ def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
     return equipment
 
 
-@router.patch("/{equipment_id}", response_model=EquipmentRead)
+@router.patch("{equipment_id}", response_model=EquipmentRead)
 def update_equipment(equipment_id: int, payload: EquipmentUpdate, db: Session = Depends(get_db)):
     equipment = db.get(Equipment, equipment_id)
     if not equipment:

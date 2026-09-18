@@ -217,7 +217,7 @@ def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
     return equipment
 
 
-@router.patch("{equipment_id}", response_model=EquipmentRead)
+@router.patch("/{equipment_id}", response_model=EquipmentRead)
 def update_equipment(equipment_id: int, payload: EquipmentUpdate, db: Session = Depends(get_db)):
     equipment = db.get(Equipment, equipment_id)
     if not equipment:

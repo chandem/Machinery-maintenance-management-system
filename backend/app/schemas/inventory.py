@@ -42,6 +42,17 @@ class InventoryRead(InventoryCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InventoryStatusRead(BaseModel):
+    id: int
+    part_id: int
+    part_number: str
+    part_name: str
+    quantity_on_hand: Decimal
+    reorder_level: Decimal
+    status: str
+    location: Optional[str]
+
+
 class PartTransactionCreate(BaseModel):
     part_id: int
     transaction_type: str = Field(pattern="^(in|out|adjustment)$")

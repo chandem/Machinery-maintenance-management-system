@@ -74,3 +74,16 @@ class WorkOrderPartRead(WorkOrderPartCreate):
     id: int
     work_order_id: int
     model_config = ConfigDict(from_attributes=True)
+
+
+class WorkOrderLaborCreate(BaseModel):
+    worker_name: str = Field(min_length=1, max_length=150)
+    role: Optional[str] = None
+    hours: Decimal = Field(gt=0)
+    hourly_rate: Decimal = Field(ge=0)
+    notes: Optional[str] = None
+
+class WorkOrderLaborRead(WorkOrderLaborCreate):
+    id: int
+    work_order_id: int
+    model_config = ConfigDict(from_attributes=True)

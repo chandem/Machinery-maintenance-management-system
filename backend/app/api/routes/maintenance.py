@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,6 +14,7 @@ from app.schemas.maintenance import (
     WorkOrderCreate,
     WorkOrderRead,
     WorkOrderUpdate,
+    WorkOrderCostRead,
     WorkOrderPartCreate,
     WorkOrderPartRead,
     WorkOrderPartReturn,
@@ -80,6 +83,45 @@ def update_work_order(work_order_id: int, payload: WorkOrderUpdate, db: Session 
     db.commit()
     db.refresh(order)
     return order
+
+
+@router.get("/work-orders/{work_order_id}/cost", response_model=WorkOrderCostRead)
+def get_work_order_cost(work_order_id: int, db: Session = Depends(get_db)):
+    order = db.get(WorkOrder, work_order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Work order not found")
+
+    parts = db.scalars(select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id)).all()
+    parts_cost = Decimal("0")
+    for item in parts:
+        if item.unit_cost is None:
+            continue
+        reference = _part_reference(order.work_order_number, item.part_id)
+        returned = db.scalar(
+            select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(
+                PartTransaction.part_id == item.part_id,
+                PartTransaction.transaction_type == "in",
+                PartTransaction.reference == reference,
+            )
+        ) or Decimal("0")
+        used_quantity = max(item.quantity - returned, Decimal("0"))
+        parts_cost += used_quantity * item.unit_cost
+
+    labor_cost = db.scalar(
+        select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(
+            WorkOrderLabor.work_order_id == work_order_id
+        )
+    ) or Decimal("0")
+    total_cost = parts_cost + labor_cost
+
+    return WorkOrderCostRead(
+        work_order_id=order.id,
+        estimated_cost=order.estimated_cost,
+        parts_cost=parts_cost,
+        labor_cost=labor_cost,
+        total_cost=total_cost,
+        recorded_actual_cost=order.actual_cost,
+    )
 
 
 @router.post("/work-orders/{work_order_id}/parts", response_model=WorkOrderPartRead, status_code=status.HTTP_201_CREATED)

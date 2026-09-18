@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.equipment import Equipment
-from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderPart
+from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderPart, WorkOrderLabor
 from app.models.inventory import Inventory, Part
 from app.schemas.maintenance import (
     MaintenancePlanCreate,
@@ -103,3 +103,22 @@ def list_work_order_parts(work_order_id: int, db: Session = Depends(get_db)):
     if db.get(WorkOrder, work_order_id) is None:
         raise HTTPException(404, "Work order not found")
     return db.scalars(select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id).order_by(WorkOrderPart.id)).all()
+
+
+@router.post("/work-orders/{work_order_id}/labor", response_model=WorkOrderLaborRead, status_code=status.HTTP_201_CREATED)
+def add_work_order_labor(work_order_id: int, payload: WorkOrderLaborCreate, db: Session = Depends(get_db)):
+    order = db.get(WorkOrder, work_order_id)
+    if order is None:
+        raise HTTPException(404, "Work order not found")
+    item = WorkOrderLabor(work_order_id=work_order_id, **payload.model_dump())
+    db.add(item)
+    order.actual_cost = (order.actual_cost or 0) + payload.hours * payload.hourly_rate
+    db.commit(); db.refresh(item)
+    return item
+
+
+@router.get("/work-orders/{work_order_id}/labor", response_model=list[WorkOrderLaborRead])
+def list_work_order_labor(work_order_id: int, db: Session = Depends(get_db)):
+    if db.get(WorkOrder, work_order_id) is None:
+        raise HTTPException(404, "Work order not found")
+    return db.scalars(select(WorkOrderLabor).where(WorkOrderLabor.work_order_id == work_order_id).order_by(WorkOrderLabor.id)).all()

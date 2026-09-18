@@ -14,7 +14,6 @@ class EquipmentCategory(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
-
     equipment: Mapped[list["Equipment"]] = relationship(back_populates="category")
 
 
@@ -24,7 +23,6 @@ class Location(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(150), unique=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
-
     equipment: Mapped[list["Equipment"]] = relationship(back_populates="location")
 
 
@@ -37,7 +35,6 @@ class Operator(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(50))
     license_number: Mapped[Optional[str]] = mapped_column(String(100))
     active: Mapped[bool] = mapped_column(default=True, nullable=False)
-
     equipment: Mapped[list["Equipment"]] = relationship(back_populates="operator")
 
 
@@ -60,7 +57,6 @@ class Equipment(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
     category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("equipment_categories.id"))
     location_id: Mapped[Optional[int]] = mapped_column(ForeignKey("locations.id"))
     operator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("operators.id"))
@@ -69,6 +65,8 @@ class Equipment(Base):
     location: Mapped[Optional[Location]] = relationship(back_populates="equipment")
     operator: Mapped[Optional[Operator]] = relationship(back_populates="equipment")
     meter_readings: Mapped[list["MeterReading"]] = relationship(back_populates="equipment", cascade="all, delete-orphan")
+    maintenance_plans: Mapped[list["MaintenancePlan"]] = relationship(back_populates="equipment", cascade="all, delete-orphan")
+    work_orders: Mapped[list["WorkOrder"]] = relationship(back_populates="equipment", cascade="all, delete-orphan")
 
 
 class MeterReading(Base):
@@ -81,5 +79,4 @@ class MeterReading(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     source: Mapped[Optional[str]] = mapped_column(String(50))
     notes: Mapped[Optional[str]] = mapped_column(Text)
-
     equipment: Mapped[Equipment] = relationship(back_populates="meter_readings")

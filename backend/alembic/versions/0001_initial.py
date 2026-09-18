@@ -185,6 +185,21 @@ def upgrade() -> None:
     op.create_index("ix_work_orders_scheduled_date", "work_orders", ["scheduled_date"])
 
     op.create_table(
+        "work_order_parts",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("work_order_id", sa.Integer(), nullable=False),
+        sa.Column("part_id", sa.Integer(), nullable=False),
+        sa.Column("quantity", sa.Numeric(14, 2), nullable=False),
+        sa.Column("unit_cost", sa.Numeric(14, 2), nullable=True),
+        sa.ForeignKeyConstraint(["part_id"], ["parts.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["work_order_id"], ["work_orders.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("work_order_id", "part_id", name="uq_work_order_part"),
+    )
+    op.create_index(op.f("ix_work_order_parts_work_order_id"), "work_order_parts", ["work_order_id"], unique=False)
+    op.create_index(op.f("ix_work_order_parts_part_id"), "work_order_parts", ["part_id"], unique=False)
+
+    op.create_table(
         "work_order_tasks",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("work_order_id", sa.Integer(), sa.ForeignKey("work_orders.id", ondelete="CASCADE"), nullable=False),
@@ -198,6 +213,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("ix_work_order_parts_part_id"), table_name="work_order_parts")
+    op.drop_index(op.f("ix_work_order_parts_work_order_id"), table_name="work_order_parts")
+    op.drop_table("work_order_parts")
     op.drop_index(op.f("ix_part_transactions_transaction_type"), table_name="part_transactions")
     op.drop_index(op.f("ix_part_transactions_part_id"), table_name="part_transactions")
     op.drop_table("part_transactions")

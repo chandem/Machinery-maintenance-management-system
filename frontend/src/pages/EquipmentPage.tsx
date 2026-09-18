@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, type Page } from "../api/client";
 import type { Equipment } from "../api/types";
 

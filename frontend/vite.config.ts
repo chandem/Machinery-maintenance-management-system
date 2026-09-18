@@ -5,13 +5,15 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        // In Docker, API service hostname is "api"; locally use localhost
+        target: process.env.VITE_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true,
       },
       "/health": {
-        target: "http://localhost:8000",
+        target: process.env.VITE_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true,
       },
     },

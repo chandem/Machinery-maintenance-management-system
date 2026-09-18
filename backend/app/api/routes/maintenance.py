@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,9 +28,10 @@ from app.schemas.maintenance import (
 
 router = APIRouter(tags=["Maintenance"])
 
+# Practical CMMS lifecycle: allow skipping ahead when work is done in the field
 WO_TRANSITIONS: dict[str, set[str]] = {
-    "draft": {"scheduled", "in_progress", "cancelled"},
-    "scheduled": {"in_progress", "cancelled"},
+    "draft": {"scheduled", "in_progress", "completed", "cancelled"},
+    "scheduled": {"in_progress", "completed", "cancelled"},
     "in_progress": {"completed", "cancelled"},
     "completed": {"verified", "cancelled"},
     "verified": {"closed"},
@@ -229,7 +230,7 @@ def update_work_order(
 
     if "status" in changes and changes["status"] is not None:
         _validate_status_transition(order.status, changes["status"])
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         new_status = changes["status"]
         if new_status == "in_progress" and order.started_at is None:
             changes.setdefault("started_at", now)
@@ -276,7 +277,7 @@ def get_work_order_cost(work_order_id: int, db: Session = Depends(get_db)):
         parts_cost += max(item.quantity - returned, Decimal("0")) * item.unit_cost
     labor_cost = db.scalar(
         select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(
-            WorkOrderLabor.work_order_id == work_order_id
+            WorkOrderLabor.work_order_id == work_order_id)
         )
     ) or Decimal("0")
     return WorkOrderCostRead(

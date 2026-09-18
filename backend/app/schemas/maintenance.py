@@ -65,6 +65,15 @@ class WorkOrderRead(WorkOrderCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WorkOrderCostRead(BaseModel):
+    work_order_id: int
+    estimated_cost: Optional[Decimal]
+    parts_cost: Decimal
+    labor_cost: Decimal
+    total_cost: Decimal
+    recorded_actual_cost: Optional[Decimal]
+
+
 class WorkOrderPartCreate(BaseModel):
     part_id: int
     quantity: Decimal = Field(gt=0)

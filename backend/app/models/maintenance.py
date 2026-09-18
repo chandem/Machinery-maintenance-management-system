@@ -59,6 +59,20 @@ class WorkOrder(Base):
     labor: Mapped[list["WorkOrderLabor"]] = relationship(back_populates="work_order", cascade="all, delete-orphan")
 
 
+class WorkOrderPart(Base):
+    __tablename__ = "work_order_parts"
+    __table_args__ = (UniqueConstraint("work_order_id", "part_id", name="uq_work_order_part"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    work_order_id: Mapped[int] = mapped_column(ForeignKey("work_orders.id", ondelete="CASCADE"), index=True)
+    part_id: Mapped[int] = mapped_column(ForeignKey("parts.id", ondelete="RESTRICT"), index=True)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 2))
+
+    work_order: Mapped[WorkOrder] = relationship(back_populates="parts")
+    part: Mapped["Part"] = relationship()
+
+
 class WorkOrderLabor(Base):
     __tablename__ = "work_order_labor"
 

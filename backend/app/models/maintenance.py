@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, func, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -55,6 +55,7 @@ class WorkOrder(Base):
     equipment: Mapped["Equipment"] = relationship(back_populates="work_orders")
     maintenance_plan: Mapped[Optional[MaintenancePlan]] = relationship(back_populates="work_orders")
     tasks: Mapped[list["WorkOrderTask"]] = relationship(back_populates="work_order", cascade="all, delete-orphan")
+    parts: Mapped[list["WorkOrderPart"]] = relationship(back_populates="work_order", cascade="all, delete-orphan")
 
 
 class WorkOrderTask(Base):

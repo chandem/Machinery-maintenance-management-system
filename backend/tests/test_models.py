@@ -1,8 +1,11 @@
 from sqlalchemy.orm import configure_mappers
 
 from app.core.database import Base
-from app.models import (  # noqa: F401 — register all models on Base.metadata
+from app.models import (  # noqa: F401
+    DowntimeEvent,
     Equipment,
+    FuelRecord,
+    Inspection,
     Inventory,
     MaintenancePlan,
     Part,
@@ -34,5 +37,8 @@ def test_model_mappers_configure():
         "inventory",
         "part_transactions",
         "users",
+        "inspections",
+        "fuel_records",
+        "downtime_events",
     }
     assert expected.issubset(set(Base.metadata.tables))

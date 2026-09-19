@@ -9,7 +9,13 @@ from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import Equipment
 from app.models.inventory import Inventory, Part, PartTransaction
-from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderLabor, WorkOrderPart
+from app.models.maintenance import (
+    MaintenancePlan,
+    WorkOrder,
+    WorkOrderLabor,
+    WorkOrderPart,
+    WorkOrderTask,
+)
 from app.schemas.maintenance import (
     MaintenancePlanCreate,
     MaintenancePlanRead,
@@ -23,12 +29,14 @@ from app.schemas.maintenance import (
     WorkOrderPartRead,
     WorkOrderPartReturn,
     WorkOrderRead,
+    WorkOrderTaskCreate,
+    WorkOrderTaskRead,
+    WorkOrderTaskUpdate,
     WorkOrderUpdate,
 )
 
 router = APIRouter(tags=["Maintenance"])
 
-# Practical CMMS lifecycle: allow skipping ahead when work is done in the field
 WO_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"scheduled", "in_progress", "completed", "cancelled"},
     "scheduled": {"in_progress", "completed", "cancelled"},
@@ -277,7 +285,7 @@ def get_work_order_cost(work_order_id: int, db: Session = Depends(get_db)):
         parts_cost += max(item.quantity - returned, Decimal("0")) * item.unit_cost
     labor_cost = db.scalar(
         select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(
-            WorkOrderLabor.work_order_id == work_order_id)
+            WorkOrderLabor.work_order_id == work_order_id
         )
     ) or Decimal("0")
     return WorkOrderCostRead(
@@ -425,3 +433,51 @@ def list_work_order_labor(work_order_id: int, db: Session = Depends(get_db)):
             select(WorkOrderLabor).where(WorkOrderLabor.work_order_id == work_order_id).order_by(WorkOrderLabor.id)
         ).all()
     )
+
+
+@router.post(
+    "/work-orders/{work_order_id}/tasks",
+    response_model=WorkOrderTaskRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_work_order_task(
+    work_order_id: int, payload: WorkOrderTaskCreate, db: Session = Depends(get_db)
+):
+    if db.get(WorkOrder, work_order_id) is None:
+        raise HTTPException(404, "Work order not found")
+    item = WorkOrderTask(work_order_id=work_order_id, **payload.model_dump())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.get("/work-orders/{work_order_id}/tasks", response_model=list[WorkOrderTaskRead])
+def list_work_order_tasks(work_order_id: int, db: Session = Depends(get_db)):
+    if db.get(WorkOrder, work_order_id) is None:
+        raise HTTPException(404, "Work order not found")
+    return list(
+        db.scalars(
+            select(WorkOrderTask).where(WorkOrderTask.work_order_id == work_order_id).order_by(WorkOrderTask.id)
+        ).all()
+    )
+
+
+@router.patch(
+    "/work-orders/{work_order_id}/tasks/{task_id}",
+    response_model=WorkOrderTaskRead,
+)
+def update_work_order_task(
+    work_order_id: int,
+    task_id: int,
+    payload: WorkOrderTaskUpdate,
+    db: Session = Depends(get_db),
+):
+    item = db.get(WorkOrderTask, task_id)
+    if item is None or item.work_order_id != work_order_id:
+        raise HTTPException(404, "Task not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, key, value)
+    db.commit()
+    db.refresh(item)
+    return item

@@ -16,6 +16,8 @@ export type DashboardSummary = {
   low_stock_parts: number;
   out_of_stock_parts: number;
   total_parts_inventory_value: number | null;
+  open_inspections?: number;
+  open_downtime_events?: number;
 };
 
 export type Equipment = {
@@ -79,6 +81,34 @@ export type WorkOrderCost = {
   recorded_actual_cost: number | null;
 };
 
+export type WorkOrderPart = {
+  id: number;
+  work_order_id: number;
+  part_id: number;
+  quantity: number;
+  unit_cost: number | null;
+};
+
+export type WorkOrderLabor = {
+  id: number;
+  work_order_id: number;
+  worker_name: string;
+  role: string | null;
+  hours: number;
+  hourly_rate: number;
+  notes: string | null;
+};
+
+export type WorkOrderTask = {
+  id: number;
+  work_order_id: number;
+  description: string;
+  status: string;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  notes: string | null;
+};
+
 export type MaintenanceScheduleStatus = {
   id: number;
   equipment_id: number;
@@ -113,7 +143,43 @@ export type Part = {
   supplier_id: number | null;
 };
 
-/** Allowed next statuses from current work-order status */
+export type Inspection = {
+  id: number;
+  equipment_id: number;
+  inspection_type: string;
+  status: string;
+  inspected_at: string;
+  inspector_name: string | null;
+  findings: string | null;
+  severity: string | null;
+  corrective_action: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type FuelRecord = {
+  id: number;
+  equipment_id: number;
+  recorded_at: string;
+  quantity: number;
+  unit: string;
+  unit_cost: number | null;
+  odometer: number | null;
+  hour_meter: number | null;
+  notes: string | null;
+};
+
+export type DowntimeEvent = {
+  id: number;
+  equipment_id: number;
+  reason: string;
+  category: string;
+  started_at: string;
+  ended_at: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
 export const WO_NEXT: Record<string, string[]> = {
   draft: ["scheduled", "in_progress", "completed", "cancelled"],
   scheduled: ["in_progress", "completed", "cancelled"],

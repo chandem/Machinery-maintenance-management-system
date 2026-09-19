@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.api.deps import require_write_user\nfrom app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models import Inventory, Part, PartTransaction, Supplier
 from app.schemas.inventory import (
@@ -21,7 +21,7 @@ router = APIRouter(tags=["Inventory"])
 
 
 @router.post("/suppliers", response_model=SupplierRead, status_code=status.HTTP_201_CREATED)
-def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db)):
+def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
     if db.scalar(select(Supplier).where(Supplier.name == payload.name)):
         raise HTTPException(409, "Supplier name already exists")
     item = Supplier(**payload.model_dump())
@@ -37,7 +37,7 @@ def list_suppliers(db: Session = Depends(get_db)):
 
 
 @router.post("/parts", response_model=PartRead, status_code=status.HTTP_201_CREATED)
-def create_part(payload: PartCreate, db: Session = Depends(get_db)):
+def create_part(payload: PartCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
     if db.scalar(select(Part).where(Part.part_number == payload.part_number)):
         raise HTTPException(409, "Part number already exists")
     if payload.supplier_id and not db.get(Supplier, payload.supplier_id):
@@ -56,7 +56,7 @@ def list_parts(params: PageParams = Depends(), db: Session = Depends(get_db)):
 
 
 @router.post("/inventory", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
-def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db)):
+def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
     if not db.get(Part, payload.part_id):
         raise HTTPException(404, "Part not found")
     if db.scalar(select(Inventory).where(Inventory.part_id == payload.part_id)):
@@ -103,7 +103,7 @@ def inventory_status(low_stock_only: bool = False, db: Session = Depends(get_db)
 
 
 @router.post("/inventory/transactions", response_model=PartTransactionRead, status_code=status.HTTP_201_CREATED)
-def create_transaction(payload: PartTransactionCreate, db: Session = Depends(get_db)):
+def create_transaction(payload: PartTransactionCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
     if not db.get(Part, payload.part_id):
         raise HTTPException(404, "Part not found")
     inventory = db.scalar(select(Inventory).where(Inventory.part_id == payload.part_id))

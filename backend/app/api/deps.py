@@ -3,9 +3,9 @@ from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
@@ -44,9 +44,22 @@ def get_current_user(
     return user
 
 
-def require_roles(*roles: str):
-    """Dependency factory: require the current user to have one of the given roles."""
+def require_write_user(
+    user: Annotated[Optional[User], Depends(get_current_user_optional)],
+) -> Optional[User]:
+    """Require auth for mutating endpoints when REQUIRE_AUTH_WRITES is enabled."""
+    if settings.require_auth_writes:
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
+    return user
 
+
+def require_roles(*roles: str):
     def _checker(user: Annotated[User, Depends(get_current_user)]) -> User:
         if user.role not in roles and user.role != "admin":
             raise HTTPException(

@@ -1,7 +1,11 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_write_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import (
@@ -11,6 +15,7 @@ from app.models.equipment import (
     MeterReading,
     Operator,
 )
+from app.models.user import User
 from app.schemas.equipment import (
     EquipmentCategoryCreate,
     EquipmentCategoryRead,
@@ -29,10 +34,12 @@ from app.schemas.equipment import (
 router = APIRouter(prefix="/equipment", tags=["Equipment"])
 
 
-# ── Categories ──────────────────────────────────────────────────────────────
-
 @router.post("/categories", response_model=EquipmentCategoryRead, status_code=status.HTTP_201_CREATED)
-def create_category(payload: EquipmentCategoryCreate, db: Session = Depends(get_db)):
+def create_category(
+    payload: EquipmentCategoryCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     if db.scalar(select(EquipmentCategory).where(EquipmentCategory.name == payload.name)):
         raise HTTPException(status_code=409, detail="Category name already exists")
     item = EquipmentCategory(**payload.model_dump())
@@ -55,10 +62,12 @@ def get_category(category_id: int, db: Session = Depends(get_db)):
     return item
 
 
-# ── Locations ───────────────────────────────────────────────────────────────
-
 @router.post("/locations", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
-def create_location(payload: LocationCreate, db: Session = Depends(get_db)):
+def create_location(
+    payload: LocationCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     if db.scalar(select(Location).where(Location.name == payload.name)):
         raise HTTPException(status_code=409, detail="Location name already exists")
     item = Location(**payload.model_dump())
@@ -81,10 +90,12 @@ def get_location(location_id: int, db: Session = Depends(get_db)):
     return item
 
 
-# ── Operators ───────────────────────────────────────────────────────────────
-
 @router.post("/operators", response_model=OperatorRead, status_code=status.HTTP_201_CREATED)
-def create_operator(payload: OperatorCreate, db: Session = Depends(get_db)):
+def create_operator(
+    payload: OperatorCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     if db.scalar(select(Operator).where(Operator.employee_code == payload.employee_code)):
         raise HTTPException(status_code=409, detail="Employee code already exists")
     item = Operator(**payload.model_dump())
@@ -111,7 +122,12 @@ def get_operator(operator_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/operators/{operator_id}", response_model=OperatorRead)
-def update_operator(operator_id: int, payload: OperatorUpdate, db: Session = Depends(get_db)):
+def update_operator(
+    operator_id: int,
+    payload: OperatorUpdate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     item = db.get(Operator, operator_id)
     if not item:
         raise HTTPException(status_code=404, detail="Operator not found")
@@ -122,10 +138,12 @@ def update_operator(operator_id: int, payload: OperatorUpdate, db: Session = Dep
     return item
 
 
-# ── Meter readings ──────────────────────────────────────────────────────────
-
 @router.post("/meter-readings", response_model=MeterReadingRead, status_code=status.HTTP_201_CREATED)
-def create_meter_reading(payload: MeterReadingCreate, db: Session = Depends(get_db)):
+def create_meter_reading(
+    payload: MeterReadingCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     equipment = db.get(Equipment, payload.equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
@@ -160,10 +178,12 @@ def list_meter_readings(
     return paginate(db, query, params, MeterReadingRead)
 
 
-# ── Equipment CRUD ──────────────────────────────────────────────────────────
-
 @router.post("", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
-def create_equipment(payload: EquipmentCreate, db: Session = Depends(get_db)):
+def create_equipment(
+    payload: EquipmentCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     existing = db.scalar(select(Equipment).where(Equipment.asset_code == payload.asset_code))
     if existing:
         raise HTTPException(status_code=409, detail="Asset code already exists")
@@ -209,6 +229,23 @@ def list_equipment(
     return paginate(db, query, params, EquipmentRead)
 
 
+@router.get("/{equipment_id}/qr")
+def equipment_qr(equipment_id: int, db: Session = Depends(get_db)):
+    """Return QR payload URL for asset identification (scan opens equipment page)."""
+    equipment = db.get(Equipment, equipment_id)
+    if not equipment:
+        raise HTTPException(status_code=404, detail="Equipment not found")
+    target = f"{settings.public_app_url.rstrip('/')}/equipment/{equipment.id}"
+    # Public QR image service — no extra Python dependency
+    image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={quote(target, safe='')}"
+    return {
+        "equipment_id": equipment.id,
+        "asset_code": equipment.asset_code,
+        "payload": target,
+        "qr_image_url": image_url,
+    }
+
+
 @router.get("/{equipment_id}", response_model=EquipmentRead)
 def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
     equipment = db.get(Equipment, equipment_id)
@@ -218,7 +255,12 @@ def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{equipment_id}", response_model=EquipmentRead)
-def update_equipment(equipment_id: int, payload: EquipmentUpdate, db: Session = Depends(get_db)):
+def update_equipment(
+    equipment_id: int,
+    payload: EquipmentUpdate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     equipment = db.get(Equipment, equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
@@ -237,7 +279,11 @@ def update_equipment(equipment_id: int, payload: EquipmentUpdate, db: Session = 
 
 
 @router.delete("/{equipment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_equipment(equipment_id: int, db: Session = Depends(get_db)):
+def delete_equipment(
+    equipment_id: int,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     equipment = db.get(Equipment, equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")

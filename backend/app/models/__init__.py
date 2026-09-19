@@ -3,6 +3,7 @@ from .maintenance import MaintenancePlan, WorkOrder, WorkOrderTask, WorkOrderPar
 from .inventory import Supplier, Part, Inventory, PartTransaction
 from .user import User
 from .operations import Inspection, FuelRecord, DowntimeEvent
+from .purchase import PurchaseRequest
 
 __all__ = [
     "Equipment", "EquipmentCategory", "Location", "Operator", "MeterReading",
@@ -10,4 +11,5 @@ __all__ = [
     "Supplier", "Part", "Inventory", "PartTransaction",
     "User",
     "Inspection", "FuelRecord", "DowntimeEvent",
+    "PurchaseRequest",
 ]

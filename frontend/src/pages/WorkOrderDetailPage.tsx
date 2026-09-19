@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, ApiError } from "../api/client";
-import type { Equipment, WorkOrder, WorkOrderCost } from "../api/types";
+import { api, ApiError, type Page } from "../api/client";
+import type {
+  Equipment,
+  Part,
+  WorkOrder,
+  WorkOrderCost,
+  WorkOrderLabor,
+  WorkOrderPart,
+  WorkOrderTask,
+} from "../api/types";
 import { WO_NEXT } from "../api/types";
 
 export default function WorkOrderDetailPage() {
@@ -9,8 +17,16 @@ export default function WorkOrderDetailPage() {
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [eq, setEq] = useState<Equipment | null>(null);
   const [cost, setCost] = useState<WorkOrderCost | null>(null);
+  const [parts, setParts] = useState<WorkOrderPart[]>([]);
+  const [labor, setLabor] = useState<WorkOrderLabor[]>([]);
+  const [tasks, setTasks] = useState<WorkOrderTask[]>([]);
+  const [catalog, setCatalog] = useState<Part[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const [partForm, setPartForm] = useState({ part_id: "", quantity: "1" });
+  const [laborForm, setLaborForm] = useState({ worker_name: "", hours: "1", hourly_rate: "50", role: "" });
+  const [taskDesc, setTaskDesc] = useState("");
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -18,12 +34,18 @@ export default function WorkOrderDetailPage() {
     try {
       const order = await api.get<WorkOrder>(`/api/v1/work-orders/${id}`);
       setWo(order);
-      const [equipment, costData] = await Promise.all([
+      const [equipment, costData, partsData, laborData, tasksData] = await Promise.all([
         api.get<Equipment>(`/api/v1/equipment/${order.equipment_id}`),
         api.get<WorkOrderCost>(`/api/v1/work-orders/${id}/cost`).catch(() => null),
+        api.get<WorkOrderPart[]>(`/api/v1/work-orders/${id}/parts`),
+        api.get<WorkOrderLabor[]>(`/api/v1/work-orders/${id}/labor`),
+        api.get<WorkOrderTask[]>(`/api/v1/work-orders/${id}/tasks`),
       ]);
       setEq(equipment);
       setCost(costData);
+      setParts(partsData);
+      setLabor(laborData);
+      setTasks(tasksData);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load work order");
     }
@@ -33,15 +55,21 @@ export default function WorkOrderDetailPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    void api
+      .get<Page<Part>>("/api/v1/parts?page_size=100")
+      .then((p) => setCatalog(p.items))
+      .catch(() => setCatalog([]));
+  }, []);
+
   async function transition(next: string) {
-    if (!id || !wo) return;
+    if (!id) return;
     setBusy(true);
     setError(null);
     try {
       const updated = await api.patch<WorkOrder>(`/api/v1/work-orders/${id}`, { status: next });
       setWo(updated);
-      const costData = await api.get<WorkOrderCost>(`/api/v1/work-orders/${id}/cost`).catch(() => null);
-      setCost(costData);
+      await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Status update failed");
     } finally {
@@ -49,10 +77,78 @@ export default function WorkOrderDetailPage() {
     }
   }
 
+  async function addPart(e: FormEvent) {
+    e.preventDefault();
+    if (!id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/v1/work-orders/${id}/parts`, {
+        part_id: Number(partForm.part_id),
+        quantity: Number(partForm.quantity),
+      });
+      setPartForm({ part_id: "", quantity: "1" });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to add part");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addLabor(e: FormEvent) {
+    e.preventDefault();
+    if (!id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/v1/work-orders/${id}/labor`, {
+        worker_name: laborForm.worker_name,
+        hours: Number(laborForm.hours),
+        hourly_rate: Number(laborForm.hourly_rate),
+        role: laborForm.role || null,
+      });
+      setLaborForm({ worker_name: "", hours: "1", hourly_rate: "50", role: "" });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to add labor");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addTask(e: FormEvent) {
+    e.preventDefault();
+    if (!id || !taskDesc.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/v1/work-orders/${id}/tasks`, { description: taskDesc.trim() });
+      setTaskDesc("");
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to add task");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleTask(task: WorkOrderTask) {
+    if (!id) return;
+    const next = task.status === "done" ? "pending" : "done";
+    try {
+      await api.patch(`/api/v1/work-orders/${id}/tasks/${task.id}`, { status: next });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to update task");
+    }
+  }
+
   if (!wo && !error) return <p className="muted">Loading…</p>;
   if (!wo) return <div className="error-msg">{error}</div>;
 
   const nextStatuses = WO_NEXT[wo.status] ?? [];
+  const partName = (pid: number) => catalog.find((p) => p.id === pid)?.name ?? `#${pid}`;
 
   return (
     <div>
@@ -131,7 +227,174 @@ export default function WorkOrderDetailPage() {
         </div>
       </div>
 
-      <div className="panel">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Parts</h2>
+          </div>
+          <form onSubmit={addPart} style={{ padding: "0.85rem 1.15rem", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <select
+                className="input"
+                required
+                value={partForm.part_id}
+                onChange={(e) => setPartForm({ ...partForm, part_id: e.target.value })}
+                style={{ flex: 1, minWidth: 120 }}
+              >
+                <option value="">Part…</option>
+                {catalog.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.part_number} — {p.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="input"
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+                value={partForm.quantity}
+                onChange={(e) => setPartForm({ ...partForm, quantity: e.target.value })}
+                style={{ width: 80 }}
+              />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+                Issue
+              </button>
+            </div>
+          </form>
+          {parts.length === 0 ? (
+            <div className="empty">No parts issued.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Part</th>
+                  <th>Qty</th>
+                  <th>Unit cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {parts.map((p) => (
+                  <tr key={p.id}>
+                    <td>{partName(p.part_id)}</td>
+                    <td>{Number(p.quantity)}</td>
+                    <td>{p.unit_cost != null ? Number(p.unit_cost).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Labor</h2>
+          </div>
+          <form onSubmit={addLabor} style={{ padding: "0.85rem 1.15rem", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px auto", gap: "0.5rem" }}>
+              <input
+                className="input"
+                placeholder="Worker"
+                required
+                value={laborForm.worker_name}
+                onChange={(e) => setLaborForm({ ...laborForm, worker_name: e.target.value })}
+              />
+              <input
+                className="input"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Hrs"
+                required
+                value={laborForm.hours}
+                onChange={(e) => setLaborForm({ ...laborForm, hours: e.target.value })}
+              />
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Rate"
+                required
+                value={laborForm.hourly_rate}
+                onChange={(e) => setLaborForm({ ...laborForm, hourly_rate: e.target.value })}
+              />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+                Add
+              </button>
+            </div>
+          </form>
+          {labor.length === 0 ? (
+            <div className="empty">No labor logged.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Worker</th>
+                  <th>Hours</th>
+                  <th>Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {labor.map((l) => (
+                  <tr key={l.id}>
+                    <td>{l.worker_name}</td>
+                    <td>{Number(l.hours)}</td>
+                    <td>{Number(l.hourly_rate).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Tasks</h2>
+          </div>
+          <form onSubmit={addTask} style={{ padding: "0.85rem 1.15rem", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                className="input"
+                placeholder="Task description"
+                value={taskDesc}
+                onChange={(e) => setTaskDesc(e.target.value)}
+                required
+              />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+                Add
+              </button>
+            </div>
+          </form>
+          {tasks.length === 0 ? (
+            <div className="empty">No tasks.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.description}</td>
+                    <td>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => void toggleTask(t)}>
+                        <span className={`badge badge-${t.status === "done" ? "completed" : "draft"}`}>{t.status}</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: "1rem" }}>
         <div className="panel-header">
           <h2>Details</h2>
         </div>
@@ -152,18 +415,6 @@ export default function WorkOrderDetailPage() {
             <tr>
               <th>Completed</th>
               <td>{wo.completed_at ? new Date(wo.completed_at).toLocaleString() : "—"}</td>
-            </tr>
-            <tr>
-              <th>Verified</th>
-              <td>{wo.verified_at ? new Date(wo.verified_at).toLocaleString() : "—"}</td>
-            </tr>
-            <tr>
-              <th>Closed</th>
-              <td>{wo.closed_at ? new Date(wo.closed_at).toLocaleString() : "—"}</td>
-            </tr>
-            <tr>
-              <th>Estimated cost</th>
-              <td>{wo.estimated_cost != null ? Number(wo.estimated_cost).toLocaleString() : "—"}</td>
             </tr>
             <tr>
               <th>Notes</th>

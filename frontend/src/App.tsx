@@ -9,6 +9,7 @@ import WorkOrdersPage from "./pages/WorkOrdersPage";
 import WorkOrderDetailPage from "./pages/WorkOrderDetailPage";
 import MaintenancePage from "./pages/MaintenancePage";
 import InventoryPage from "./pages/InventoryPage";
+import InspectionsPage from "./pages/InspectionsPage";
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
         <Route path="maintenance" element={<MaintenancePage />} />
         <Route path="inventory" element={<InventoryPage />} />
+        <Route path="inspections" element={<InspectionsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

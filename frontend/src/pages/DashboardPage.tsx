@@ -61,9 +61,13 @@ export default function DashboardPage() {
             <div className="label">Low stock</div>
             <div className="value">{summary.low_stock_parts}</div>
           </div>
-          <div className={`stat-card ${summary.out_of_stock_parts ? "danger" : ""}`}>
-            <div className="label">Out of stock</div>
-            <div className="value">{summary.out_of_stock_parts}</div>
+          <div className={`stat-card ${(summary.open_inspections ?? 0) ? "warn" : ""}`}>
+            <div className="label">Open inspections</div>
+            <div className="value">{summary.open_inspections ?? 0}</div>
+          </div>
+          <div className={`stat-card ${(summary.open_downtime_events ?? 0) ? "danger" : ""}`}>
+            <div className="label">Open downtime</div>
+            <div className="value">{summary.open_downtime_events ?? 0}</div>
           </div>
         </div>
       )}

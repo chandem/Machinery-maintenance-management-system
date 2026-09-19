@@ -24,6 +24,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://mmms:mmms@db:5432/mmms
       SECRET_KEY: dev-secret-change-in-production
+      REQUIRE_AUTH_WRITES: "true"
+      PUBLIC_APP_URL: http://localhost:5173
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +41,6 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # Browser calls relative /api; Vite proxies to the API container
       VITE_API_BASE: ""
       VITE_PROXY_TARGET: http://api:8000
     volumes:

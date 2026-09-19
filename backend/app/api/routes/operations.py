@@ -2,10 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_write_user
 from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import Equipment
 from app.models.operations import DowntimeEvent, FuelRecord, Inspection
+from app.models.user import User
 from app.schemas.operations import (
     DowntimeCreate,
     DowntimeRead,
@@ -20,10 +22,12 @@ from app.schemas.operations import (
 router = APIRouter(tags=["Operations"])
 
 
-# ── Inspections ─────────────────────────────────────────────────────────────
-
 @router.post("/inspections", response_model=InspectionRead, status_code=status.HTTP_201_CREATED)
-def create_inspection(payload: InspectionCreate, db: Session = Depends(get_db)):
+def create_inspection(
+    payload: InspectionCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     if db.get(Equipment, payload.equipment_id) is None:
         raise HTTPException(404, "Equipment not found")
     item = Inspection(**payload.model_dump())
@@ -57,7 +61,12 @@ def get_inspection(inspection_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/inspections/{inspection_id}", response_model=InspectionRead)
-def update_inspection(inspection_id: int, payload: InspectionUpdate, db: Session = Depends(get_db)):
+def update_inspection(
+    inspection_id: int,
+    payload: InspectionUpdate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     item = db.get(Inspection, inspection_id)
     if item is None:
         raise HTTPException(404, "Inspection not found")
@@ -68,10 +77,12 @@ def update_inspection(inspection_id: int, payload: InspectionUpdate, db: Session
     return item
 
 
-# ── Fuel ────────────────────────────────────────────────────────────────────
-
 @router.post("/fuel", response_model=FuelRecordRead, status_code=status.HTTP_201_CREATED)
-def create_fuel_record(payload: FuelRecordCreate, db: Session = Depends(get_db)):
+def create_fuel_record(
+    payload: FuelRecordCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     equipment = db.get(Equipment, payload.equipment_id)
     if equipment is None:
         raise HTTPException(404, "Equipment not found")
@@ -102,10 +113,12 @@ def list_fuel_records(
     return paginate(db, query, params, FuelRecordRead)
 
 
-# ── Downtime ────────────────────────────────────────────────────────────────
-
 @router.post("/downtime", response_model=DowntimeRead, status_code=status.HTTP_201_CREATED)
-def create_downtime(payload: DowntimeCreate, db: Session = Depends(get_db)):
+def create_downtime(
+    payload: DowntimeCreate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     if db.get(Equipment, payload.equipment_id) is None:
         raise HTTPException(404, "Equipment not found")
     if payload.ended_at is not None and payload.ended_at < payload.started_at:
@@ -133,7 +146,12 @@ def list_downtime(
 
 
 @router.patch("/downtime/{event_id}", response_model=DowntimeRead)
-def update_downtime(event_id: int, payload: DowntimeUpdate, db: Session = Depends(get_db)):
+def update_downtime(
+    event_id: int,
+    payload: DowntimeUpdate,
+    db: Session = Depends(get_db),
+    _: User | None = Depends(require_write_user),
+):
     item = db.get(DowntimeEvent, event_id)
     if item is None:
         raise HTTPException(404, "Downtime event not found")

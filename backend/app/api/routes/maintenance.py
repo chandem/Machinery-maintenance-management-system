@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.api.deps import require_write_user\nfrom app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import Equipment
 from app.models.inventory import Inventory, Part, PartTransaction
@@ -85,7 +85,7 @@ def _validate_status_transition(current: str, new: str) -> None:
 
 
 @router.post("/maintenance-plans", response_model=MaintenancePlanRead, status_code=status.HTTP_201_CREATED)
-def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depends(get_db)):
+def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
     if db.get(Equipment, payload.equipment_id) is None:
         raise HTTPException(404, "Equipment not found")
     plan = MaintenancePlan(**payload.model_dump())
@@ -183,7 +183,7 @@ def maintenance_plan_status(db: Session = Depends(get_db)):
 
 
 @router.post("/work-orders", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)
-def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db)):
+def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
     if db.get(Equipment, payload.equipment_id) is None:
         raise HTTPException(404, "Equipment not found")
     if payload.maintenance_plan_id is not None:

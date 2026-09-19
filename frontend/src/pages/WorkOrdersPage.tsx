@@ -1,12 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
-import type { WorkOrder } from "../api/types";
+import type { Equipment, WorkOrder } from "../api/types";
 
 export default function WorkOrdersPage() {
   const [data, setData] = useState<Page<WorkOrder> | null>(null);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [form, setForm] = useState({
+    work_order_number: "",
+    equipment_id: "",
+    title: "",
+    maintenance_type: "corrective",
+    priority: "medium",
+  });
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -23,6 +34,37 @@ export default function WorkOrdersPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!showForm) return;
+    void api
+      .get<Page<Equipment>>("/api/v1/equipment?page_size=100")
+      .then((p) => setEquipment(p.items))
+      .catch(() => setEquipment([]));
+  }, [showForm]);
+
+  async function onCreate(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post("/api/v1/work-orders", {
+        work_order_number: form.work_order_number,
+        equipment_id: Number(form.equipment_id),
+        title: form.title,
+        maintenance_type: form.maintenance_type,
+        priority: form.priority,
+      });
+      setShowForm(false);
+      setForm({ work_order_number: "", equipment_id: "", title: "", maintenance_type: "corrective", priority: "medium" });
+      setPage(1);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Create failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div>
@@ -52,11 +94,76 @@ export default function WorkOrdersPage() {
               <option value="closed">Closed</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? "Cancel" : "New work order"}
+            </button>
           </div>
         </div>
 
+        {showForm && (
+          <form onSubmit={onCreate} style={{ padding: "1rem 1.15rem", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>WO number</label>
+                <input
+                  className="input"
+                  required
+                  value={form.work_order_number}
+                  onChange={(e) => setForm({ ...form, work_order_number: e.target.value })}
+                  placeholder="WO-001"
+                />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Equipment</label>
+                <select
+                  className="input"
+                  required
+                  value={form.equipment_id}
+                  onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}
+                >
+                  <option value="">Select…</option>
+                  {equipment.map((eq) => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.asset_code} — {eq.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Title</label>
+                <input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Type</label>
+                <select
+                  className="input"
+                  value={form.maintenance_type}
+                  onChange={(e) => setForm({ ...form, maintenance_type: e.target.value })}
+                >
+                  <option value="corrective">Corrective</option>
+                  <option value="preventive">Preventive</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="inspection">Inspection</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Priority</label>
+                <select className="input" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" className="btn btn-primary btn-sm" style={{ marginTop: "0.75rem" }} disabled={busy}>
+              {busy ? "Saving…" : "Create"}
+            </button>
+          </form>
+        )}
+
         {!data || data.items.length === 0 ? (
-          <div className="empty">No work orders yet. Create them via the API or maintenance flow.</div>
+          <div className="empty">No work orders yet.</div>
         ) : (
           <>
             <table>
@@ -74,7 +181,9 @@ export default function WorkOrdersPage() {
                 {data.items.map((wo) => (
                   <tr key={wo.id}>
                     <td>
-                      <strong>{wo.work_order_number}</strong>
+                      <Link to={`/work-orders/${wo.id}`}>
+                        <strong style={{ color: "var(--accent)" }}>{wo.work_order_number}</strong>
+                      </Link>
                     </td>
                     <td>{wo.title}</td>
                     <td style={{ textTransform: "capitalize" }}>{wo.maintenance_type}</td>

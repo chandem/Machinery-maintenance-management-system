@@ -13,27 +13,23 @@
 - [x] CI pipeline (compile + pytest)
 
 ## Phase 2 — Equipment Management
-- [x] Equipment CRUD (API + basic UI list/create)
-- [x] Categories CRUD
-- [x] Locations CRUD
+- [x] Equipment CRUD (API + UI list/create)
+- [x] Equipment detail page (status, meters, linked WOs)
+- [x] Categories / Locations / Operators CRUD (API)
 - [x] Equipment status + search/filter
-- [x] Meter readings (create + list, auto-sync equipment meters)
-- [x] Operators CRUD
+- [x] Meter readings (API + UI record)
 - [ ] Equipment documents
 - [ ] QR identification
-- [ ] Equipment detail page (UI)
 
 ## Phase 3 — Maintenance
-- [x] Maintenance plans
-- [x] Maintenance schedule status (due / overdue)
-- [x] Work orders + status lifecycle validation
-- [x] Parts consumption on work orders (issue / return)
-- [x] Labor tracking + cost roll-up
-- [x] Work-order cost endpoint
-- [x] Work orders list (UI)
-- [ ] Work order detail + status transitions (UI)
+- [x] Maintenance plans (API)
+- [x] Maintenance schedule status (API + UI)
+- [x] Work orders + status lifecycle (API + UI transitions)
+- [x] Work order create + detail (UI)
+- [x] Parts consumption on work orders (API)
+- [x] Labor tracking + cost roll-up (API + UI cost summary)
+- [ ] Parts/labor issue from UI
 - [ ] Task checklist on work orders
-- [ ] Maintenance history views
 
 ## Phase 4 — Operations
 - [ ] Inspections
@@ -44,15 +40,14 @@
 - [ ] Availability metrics
 
 ## Phase 5 — Inventory & Reporting
-- [x] Spare-parts inventory + suppliers
-- [x] Stock status / low-stock alerts
-- [x] Part transactions
+- [x] Spare-parts inventory + suppliers (API)
+- [x] Stock status / low-stock (API + UI)
+- [x] Add part + stock (UI)
+- [x] Part transactions (API)
 - [x] Dashboard summary KPIs (API + UI)
-- [ ] Inventory UI
 - [ ] Purchase requests
 - [ ] Cost reports
 - [ ] Equipment utilization
-- [ ] Full maintenance KPI dashboard
 
 ## Phase 6 — Advanced Intelligence
 - [ ] Notifications

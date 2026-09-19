@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
 import type { Equipment } from "../api/types";
 
@@ -140,7 +141,9 @@ export default function EquipmentPage() {
                 {data.items.map((eq) => (
                   <tr key={eq.id}>
                     <td>
-                      <strong>{eq.asset_code}</strong>
+                      <Link to={`/equipment/${eq.id}`}>
+                        <strong style={{ color: "var(--accent)" }}>{eq.asset_code}</strong>
+                      </Link>
                     </td>
                     <td>{eq.name}</td>
                     <td>{eq.manufacturer ?? "—"}</td>

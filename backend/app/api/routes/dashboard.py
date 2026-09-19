@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
@@ -8,6 +9,7 @@ from app.core.database import get_db
 from app.models.equipment import Equipment
 from app.models.inventory import Inventory, Part
 from app.models.maintenance import MaintenancePlan, WorkOrder
+from app.models.operations import DowntimeEvent, Inspection
 from app.schemas.dashboard import DashboardSummary
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -30,9 +32,6 @@ def dashboard_summary(db: Session = Depends(get_db)):
     open_wo = db.scalar(
         select(func.count()).select_from(WorkOrder).where(WorkOrder.status.in_(OPEN_WO_STATUSES))
     ) or 0
-
-    # Overdue plans: active + (due date in past OR meter exceeded)
-    from datetime import date
 
     today = date.today()
     plans = db.execute(
@@ -63,6 +62,13 @@ def dashboard_summary(db: Session = Depends(get_db)):
         if part.unit_cost is not None:
             inventory_value += inv.quantity_on_hand * part.unit_cost
 
+    open_inspections = db.scalar(
+        select(func.count()).select_from(Inspection).where(Inspection.status == "open")
+    ) or 0
+    open_downtime = db.scalar(
+        select(func.count()).select_from(DowntimeEvent).where(DowntimeEvent.ended_at.is_(None))
+    ) or 0
+
     return DashboardSummary(
         total_equipment=total_equipment,
         operational_equipment=operational,
@@ -72,4 +78,6 @@ def dashboard_summary(db: Session = Depends(get_db)):
         low_stock_parts=low_stock,
         out_of_stock_parts=out_of_stock,
         total_parts_inventory_value=inventory_value if inventory_value else None,
+        open_inspections=open_inspections,
+        open_downtime_events=open_downtime,
     )

@@ -13,3 +13,5 @@ class DashboardSummary(BaseModel):
     low_stock_parts: int
     out_of_stock_parts: int
     total_parts_inventory_value: Optional[Decimal] = None
+    open_inspections: int = 0
+    open_downtime_events: int = 0

@@ -120,3 +120,29 @@ class WorkOrderLaborRead(WorkOrderLaborCreate):
     id: int
     work_order_id: int
     model_config = ConfigDict(from_attributes=True)
+
+
+class WorkOrderTaskCreate(BaseModel):
+    description: str = Field(min_length=1, max_length=300)
+    estimated_hours: Optional[Decimal] = Field(default=None, ge=0)
+    notes: Optional[str] = None
+
+
+class WorkOrderTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    description: Optional[str] = Field(default=None, min_length=1, max_length=300)
+    status: Optional[str] = None  # pending | in_progress | done
+    estimated_hours: Optional[Decimal] = Field(default=None, ge=0)
+    actual_hours: Optional[Decimal] = Field(default=None, ge=0)
+    notes: Optional[str] = None
+
+
+class WorkOrderTaskRead(BaseModel):
+    id: int
+    work_order_id: int
+    description: str
+    status: str
+    estimated_hours: Optional[Decimal]
+    actual_hours: Optional[Decimal]
+    notes: Optional[str]
+    model_config = ConfigDict(from_attributes=True)

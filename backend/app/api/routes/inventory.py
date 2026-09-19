@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_write_user\nfrom app.core.database import get_db
+from app.api.deps import require_write_user
+from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models import Inventory, Part, PartTransaction, Supplier
 from app.schemas.inventory import (

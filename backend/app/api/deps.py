@@ -55,6 +55,11 @@ def require_write_user(
                 detail="Not authenticated",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        if user.role == "viewer":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Viewer role cannot modify data",
+            )
         return user
     return user
 

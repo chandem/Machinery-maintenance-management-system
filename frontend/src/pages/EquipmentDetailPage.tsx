@@ -23,6 +23,9 @@ export default function EquipmentDetailPage() {
   const [dtCategory, setDtCategory] = useState("breakdown");
   const [busy, setBusy] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", warranty_expiry: "", notes: "" });
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -127,6 +130,22 @@ export default function EquipmentDetailPage() {
     }
   }
 
+  function startEdit() {
+    setEditForm({ name: eq?.name ?? "", manufacturer: eq?.manufacturer ?? "", model: eq?.model ?? "", serial_number: eq?.serial_number ?? "", plate_number: eq?.plate_number ?? "", warranty_expiry: eq?.warranty_expiry ?? "", notes: eq?.notes ?? "" });
+    setEditing(true);
+  }
+
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!id) return;
+    setEditBusy(true); setError(null);
+    try {
+      const updated = await api.patch<Equipment>(`/api/v1/equipment/${id}`, { ...editForm, manufacturer: editForm.manufacturer || null, model: editForm.model || null, serial_number: editForm.serial_number || null, plate_number: editForm.plate_number || null, warranty_expiry: editForm.warranty_expiry || null, notes: editForm.notes || null });
+      setEq(updated); setEditing(false);
+    } catch (err) { setError(err instanceof ApiError ? err.detail : "Equipment update failed"); }
+    finally { setEditBusy(false); }
+  }
+
   async function updateStatus(status: string) {
     if (!id || !eq) return;
     setStatusBusy(true);
@@ -164,6 +183,7 @@ export default function EquipmentDetailPage() {
           <span className={`badge badge-${eq.status}`}>{eq.status.replace(/_/g, " ")}</span>
         </div>
         <div className="toolbar">
+          <button type="button" className="btn btn-primary btn-sm" onClick={startEdit}>Edit asset</button>
           {(["operational", "maintenance", "down", "out_of_service"] as const).map((s) => (
             <button
               key={s}
@@ -179,6 +199,24 @@ export default function EquipmentDetailPage() {
       </div>
 
       {error && <div className="error-msg" style={{ marginTop: "1rem" }}>{error}</div>}
+
+      {editing && (
+        <div className="panel" style={{ marginTop: "1rem" }}>
+          <div className="panel-header"><h2>Edit asset information</h2><button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button></div>
+          <form onSubmit={saveEdit} style={{ padding: "1rem 1.15rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+              <div className="form-group" style={{ margin: 0 }}><label>Name</label><input className="input" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0 }}><label>Manufacturer</label><input className="input" value={editForm.manufacturer} onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0 }}><label>Model</label><input className="input" value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0 }}><label>Serial number</label><input className="input" value={editForm.serial_number} onChange={(e) => setEditForm({ ...editForm, serial_number: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0 }}><label>Plate number</label><input className="input" value={editForm.plate_number} onChange={(e) => setEditForm({ ...editForm, plate_number: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0 }}><label>Warranty expiry</label><input className="input" type="date" value={editForm.warranty_expiry} onChange={(e) => setEditForm({ ...editForm, warranty_expiry: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0, gridColumn: "1 / -1" }}><label>Notes</label><textarea className="input" rows={3} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+            </div>
+            <button type="submit" className="btn btn-primary btn-sm" style={{ marginTop: "0.75rem" }} disabled={editBusy}>{editBusy ? "Saving…" : "Save changes"}</button>
+          </form>
+        </div>
+      )}
 
       <div className="stats" style={{ marginTop: "1.5rem" }}>
         <div className="stat-card">

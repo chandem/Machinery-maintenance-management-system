@@ -8,6 +8,7 @@ export default function MaintenancePage() {
   const [showForm, setShowForm] = useState(false);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     equipment_id: "",
     name: "",
@@ -18,11 +19,14 @@ export default function MaintenancePage() {
 
   const load = useCallback(async () => {
     setError(null);
+    setLoading(true);
     try {
       const data = await api.get<MaintenanceScheduleStatus[]>("/api/v1/maintenance-plans/status");
       setRows(data);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load schedule");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -62,10 +66,21 @@ export default function MaintenancePage() {
     }
   }
 
+  const overdue = rows.filter((r) => r.status === "overdue").length;
+  const due = rows.filter((r) => r.status === "due").length;
+  const scheduled = rows.filter((r) => r.status === "scheduled").length;
+
   return (
     <div>
       <h1 className="page-title">Maintenance schedule</h1>
-      <p className="page-sub">Active plans with due / overdue status</p>
+      <p className="page-sub">{rows.length} active plans · {overdue} overdue · {due} due now · {scheduled} scheduled</p>
+
+      <div className="stats maintenance-stats">
+        <div className="stat-card"><span className="label">Active plans</span><span className="value">{rows.length}</span></div>
+        <div className="stat-card"><span className="label">Overdue</span><span className="value">{overdue}</span></div>
+        <div className="stat-card"><span className="label">Due now</span><span className="value">{due}</span></div>
+        <div className="stat-card"><span className="label">Scheduled</span><span className="value">{scheduled}</span></div>
+      </div>
 
       {error && <div className="error-msg">{error}</div>}
 
@@ -114,9 +129,12 @@ export default function MaintenancePage() {
           </form>
         )}
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <div className="empty">Loading maintenance schedule…</div>
+        ) : rows.length === 0 ? (
           <div className="empty">No active maintenance plans.</div>
         ) : (
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -149,6 +167,7 @@ export default function MaintenancePage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

@@ -69,3 +69,13 @@ class DowntimeRead(DowntimeCreate):
     id: int
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class DowntimeSummaryRead(BaseModel):
+    equipment_id: int
+    total_events: int
+    open_events: int
+    total_hours: Decimal
+    breakdown_hours: Decimal
+    maintenance_hours: Decimal
+    other_hours: Decimal

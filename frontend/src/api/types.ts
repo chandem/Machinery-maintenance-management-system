@@ -129,6 +129,22 @@ export type WorkOrderTask = {
   notes: string | null;
 };
 
+export type MaintenancePlan = {
+  id: number;
+  equipment_id: number;
+  name: string;
+  maintenance_type: string;
+  interval_hours: number | null;
+  interval_days: number | null;
+  last_service_date: string | null;
+  last_service_meter: number | null;
+  next_due_date: string | null;
+  next_due_meter: number | null;
+  active: boolean;
+  notes: string | null;
+  created_at: string;
+};
+
 export type MaintenanceScheduleStatus = {
   id: number;
   equipment_id: number;

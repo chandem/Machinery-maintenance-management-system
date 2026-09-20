@@ -569,3 +569,7 @@ a:focus-visible {
 .wo-task-bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
 .wo-task-bar span { display: block; height: 100%; background: var(--success); border-radius: inherit; }
 @media (max-width: 600px) { .wo-workflow { margin-left: -0.25rem; margin-right: -0.25rem; } }
+
+
+.maintenance-stats { margin-bottom: 1.5rem; }
+@media (max-width: 700px) { .maintenance-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

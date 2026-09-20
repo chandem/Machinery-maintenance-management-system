@@ -1,23 +1,32 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { DashboardSummary, MaintenanceScheduleStatus } from "../api/types";
+import type { DashboardSummary, Equipment, MaintenancePerformance, MaintenanceScheduleStatus } from "../api/types";
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [schedule, setSchedule] = useState<MaintenanceScheduleStatus[]>([]);
+  const [performance, setPerformance] = useState<Array<MaintenancePerformance & { equipment: Equipment }>>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, st] = await Promise.all([
+        const [s, st, eq] = await Promise.all([
           api.get<DashboardSummary>("/api/v1/dashboard/summary"),
           api.get<MaintenanceScheduleStatus[]>("/api/v1/maintenance-plans/status"),
+          api.get<{ items: Equipment[] }>("/api/v1/equipment?page=1&page_size=20"),
         ]);
         if (!cancelled) {
           setSummary(s);
           setSchedule(st.filter((x) => x.status === "due" || x.status === "overdue").slice(0, 8));
+          const results = await Promise.all(
+            eq.items.map(async (equipment) => ({
+              equipment,
+              ...(await api.get<MaintenancePerformance>(`/api/v1/maintenance/performance?equipment_id=${equipment.id}`)),
+            }))
+          );
+          setPerformance(results.filter((x) => x.breakdown_events > 0));
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.detail : "Failed to load dashboard");
@@ -71,6 +80,30 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <div className="panel performance-panel">
+        <div className="panel-header">
+          <div>
+            <h2>Maintenance performance</h2>
+            <div className="muted">MTBF and MTTR from recorded breakdown events</div>
+          </div>
+        </div>
+        {performance.length === 0 ? (
+          <div className="empty">No breakdown history is available yet.</div>
+        ) : (
+          <table>
+            <thead><tr><th>Equipment</th><th>Breakdowns</th><th>Downtime</th><th>MTTR</th><th>MTBF</th></tr></thead>
+            <tbody>{performance.slice(0, 8).map((row) => (
+              <tr key={row.equipment_id}>
+                <td><strong>{row.equipment.asset_code}</strong><div className="muted">{row.equipment.name}</div></td>
+                <td>{row.breakdown_events}</td><td>{Number(row.breakdown_hours).toFixed(1)} h</td>
+                <td>{row.mttr_hours == null ? "—" : `${Number(row.mttr_hours).toFixed(1)} h`}</td>
+                <td>{row.mtbf_hours == null ? "—" : `${Number(row.mtbf_hours).toFixed(1)} h`}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </div>
 
       <div className="panel">
         <div className="panel-header">

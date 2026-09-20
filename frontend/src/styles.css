@@ -627,3 +627,16 @@ a:focus-visible {
   .fuel-form > .btn { margin-bottom: 0; }
   .fuel-filters .input { width: 100%; min-width: 0; }
 }
+
+
+.operating-cost-stats {
+  padding: 0 1.15rem 1rem;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+.operating-cost-stats .stat-card { margin: 0; }
+@media (max-width: 900px) {
+  .operating-cost-stats { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+}
+@media (max-width: 600px) {
+  .operating-cost-stats { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+}

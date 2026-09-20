@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,6 +22,8 @@ from app.schemas.operations import (
     InspectionUpdate,
     DowntimeSummaryRead,
     MaintenancePerformanceRead,
+    FuelSummaryRead,
+    FuelEquipmentSummaryRead,
 )
 
 router = APIRouter(tags=["Operations"])
@@ -116,6 +118,96 @@ def list_fuel_records(
     if equipment_id is not None:
         query = query.where(FuelRecord.equipment_id == equipment_id)
     return paginate(db, query, params, FuelRecordRead)
+
+
+
+@router.get("/fuel/summary", response_model=FuelSummaryRead)
+def fuel_summary(
+    equipment_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    db: Session = Depends(get_db),
+):
+    query = select(FuelRecord).order_by(FuelRecord.equipment_id, FuelRecord.recorded_at)
+    if equipment_id is not None:
+        query = query.where(FuelRecord.equipment_id == equipment_id)
+    if start_date is not None:
+        query = query.where(FuelRecord.recorded_at >= datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc))
+    if end_date is not None:
+        query = query.where(FuelRecord.recorded_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
+
+    rows = list(db.scalars(query).all())
+    equipment_ids = {row.equipment_id for row in rows}
+    equipment_map = {
+        item.id: item
+        for item in db.scalars(select(Equipment).where(Equipment.id.in_(equipment_ids))).all()
+    } if equipment_ids else {}
+
+    totals_by_equipment: dict[int, dict] = {}
+    previous: dict[int, FuelRecord] = {}
+    total_quantity = Decimal("0")
+    total_cost = Decimal("0")
+    priced_quantity = Decimal("0")
+
+    for row in rows:
+        quantity = Decimal(row.quantity or 0)
+        cost = quantity * Decimal(row.unit_cost or 0)
+        total_quantity += quantity
+        total_cost += cost
+        if row.unit_cost is not None:
+            priced_quantity += quantity
+
+        item = totals_by_equipment.setdefault(row.equipment_id, {
+            "quantity": Decimal("0"),
+            "fuel_cost": Decimal("0"),
+            "priced_quantity": Decimal("0"),
+            "hours_used": Decimal("0"),
+            "km_used": Decimal("0"),
+            "has_hours": False,
+            "has_km": False,
+        })
+        item["quantity"] += quantity
+        item["fuel_cost"] += cost
+        if row.unit_cost is not None:
+            item["priced_quantity"] += quantity
+
+        prev = previous.get(row.equipment_id)
+        if prev is not None:
+            if row.hour_meter is not None and prev.hour_meter is not None and row.hour_meter >= prev.hour_meter:
+                item["hours_used"] += Decimal(row.hour_meter) - Decimal(prev.hour_meter)
+                item["has_hours"] = True
+            if row.odometer is not None and prev.odometer is not None and row.odometer >= prev.odometer:
+                item["km_used"] += Decimal(row.odometer) - Decimal(prev.odometer)
+                item["has_km"] = True
+        previous[row.equipment_id] = row
+
+    summaries = []
+    for eid, item in totals_by_equipment.items():
+        eq = equipment_map.get(eid)
+        if eq is None:
+            continue
+        quantity = item["quantity"]
+        summaries.append(FuelEquipmentSummaryRead(
+            equipment_id=eid,
+            asset_code=eq.asset_code,
+            equipment_name=eq.name,
+            quantity=quantity.quantize(Decimal("0.01")),
+            fuel_cost=item["fuel_cost"].quantize(Decimal("0.01")),
+            average_unit_cost=(item["fuel_cost"] / item["priced_quantity"]).quantize(Decimal("0.01")) if item["priced_quantity"] > 0 else None,
+            hours_used=item["hours_used"].quantize(Decimal("0.01")) if item["has_hours"] else None,
+            km_used=item["km_used"].quantize(Decimal("0.01")) if item["has_km"] else None,
+            liters_per_hour=(quantity / item["hours_used"]).quantize(Decimal("0.01")) if item["has_hours"] and item["hours_used"] > 0 else None,
+            liters_per_km=(quantity / item["km_used"]).quantize(Decimal("0.0001")) if item["has_km"] and item["km_used"] > 0 else None,
+        ))
+    summaries.sort(key=lambda x: x.fuel_cost, reverse=True)
+
+    return FuelSummaryRead(
+        total_records=len(rows),
+        total_quantity=total_quantity.quantize(Decimal("0.01")),
+        total_fuel_cost=total_cost.quantize(Decimal("0.01")),
+        average_unit_cost=(total_cost / priced_quantity).quantize(Decimal("0.01")) if priced_quantity > 0 else None,
+        by_equipment=summaries,
+    )
 
 
 @router.post("/downtime", response_model=DowntimeRead, status_code=status.HTTP_201_CREATED)

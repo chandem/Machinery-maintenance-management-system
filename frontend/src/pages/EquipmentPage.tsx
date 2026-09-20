@@ -12,9 +12,10 @@ export default function EquipmentPage() {
   const [locationId, setLocationId] = useState("");
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [operators, setOperators] = useState<{ id: number; employee_code: string; full_name: string; active: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", status: "operational" });
+  const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", category_id: "", location_id: "", operator_id: "", notes: "", status: "operational" });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +41,8 @@ export default function EquipmentPage() {
     void Promise.all([
       api.get<{ id: number; name: string }[]>("/api/v1/equipment/categories"),
       api.get<{ id: number; name: string }[]>("/api/v1/equipment/locations"),
-    ]).then(([cats, locs]) => { setCategories(cats); setLocations(locs); }).catch((err) => {
+      api.get<{ id: number; employee_code: string; full_name: string; active: boolean }[]>("/api/v1/equipment/operators?active_only=true"),
+    ]).then(([cats, locs, ops]) => { setCategories(cats); setLocations(locs); setOperators(ops); }).catch((err) => {
       setError(err instanceof ApiError ? err.detail : "Failed to load equipment filters");
     });
   }, []);
@@ -66,7 +68,7 @@ export default function EquipmentPage() {
         status: form.status,
       });
       setShowForm(false);
-      setForm({ asset_code: "", name: "", manufacturer: "", status: "operational" });
+      setForm({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", category_id: "", location_id: "", operator_id: "", notes: "", status: "operational" });
       setPage(1);
       await load();
     } catch (err) {
@@ -128,7 +130,7 @@ export default function EquipmentPage() {
 
         {showForm && (
           <form onSubmit={onCreate} style={{ padding: "1rem 1.15rem", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
+            <div className="equipment-create-grid">
               <div className="form-group" style={{ margin: 0 }}>
                 <label>Asset code</label>
                 <input className="input" required value={form.asset_code} onChange={(e) => setForm({ ...form, asset_code: e.target.value })} />

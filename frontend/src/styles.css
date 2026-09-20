@@ -583,3 +583,9 @@ a:focus-visible {
 .equipment-create-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; }
 .equipment-create-grid textarea { resize: vertical; }
 @media (max-width: 600px) { .equipment-create-grid { grid-template-columns: 1fr; } }
+
+
+.asset-profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; padding: 1rem 1.15rem; }
+.asset-profile-grid > div { display: flex; flex-direction: column; gap: 0.25rem; }
+.asset-profile-grid strong { font-size: 0.9rem; font-weight: 600; }
+.asset-notes { margin: 0 1.15rem 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border); line-height: 1.5; }

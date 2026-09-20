@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +20,7 @@ from app.schemas.operations import (
     InspectionCreate,
     InspectionRead,
     InspectionUpdate,
+    DowntimeSummaryRead,
 )
 
 router = APIRouter(tags=["Operations"])
@@ -163,3 +167,38 @@ def update_downtime(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.get("/downtime/summary", response_model=DowntimeSummaryRead)
+def downtime_summary(equipment_id: int, db: Session = Depends(get_db)):
+    rows = db.scalars(
+        select(DowntimeEvent)
+        .where(DowntimeEvent.equipment_id == equipment_id)
+        .order_by(DowntimeEvent.started_at)
+    ).all()
+    now = datetime.now(timezone.utc)
+    total = Decimal("0")
+    breakdown = Decimal("0")
+    maintenance = Decimal("0")
+    for event in rows:
+        start = event.started_at
+        end = event.ended_at or now
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        hours = Decimal(str(max((end - start).total_seconds(), 0) / 3600))
+        total += hours
+        if event.category == "breakdown":
+            breakdown += hours
+        elif event.category == "maintenance":
+            maintenance += hours
+    return DowntimeSummaryRead(
+        equipment_id=equipment_id,
+        total_events=len(rows),
+        open_events=sum(1 for event in rows if event.ended_at is None),
+        total_hours=total.quantize(Decimal("0.01")),
+        breakdown_hours=breakdown.quantize(Decimal("0.01")),
+        maintenance_hours=maintenance.quantize(Decimal("0.01")),
+        other_hours=(total - breakdown - maintenance).quantize(Decimal("0.01")),
+    )

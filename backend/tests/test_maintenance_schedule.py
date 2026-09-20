@@ -103,3 +103,116 @@ def test_work_order_rejects_plan_for_other_equipment(db: Session):
             ),
             db,
         )
+
+
+def test_work_order_part_issuance_updates_stock_transaction_and_cost(db: Session):
+    equipment, _ = seed(db)
+    part = Part(
+        part_number="FLT-001",
+        name="Engine Filter",
+        unit="pcs",
+        unit_cost=Decimal("150"),
+        reorder_level=2,
+    )
+    db.add(part)
+    db.flush()
+    inventory = Inventory(part_id=part.id, quantity_on_hand=Decimal("10"), location="Main Store")
+    db.add(inventory)
+    order = create_work_order(
+        WorkOrderCreate(
+            work_order_number="WO-PART-001",
+            equipment_id=equipment.id,
+            title="Filter replacement",
+        ),
+        db,
+    )
+    db.commit()
+
+    result = add_work_order_part(
+        order.id,
+        WorkOrderPartCreate(part_id=part.id, quantity=Decimal("3")),
+        db,
+    )
+    db.refresh(inventory)
+    db.refresh(order)
+    tx = db.scalar(
+        select(PartTransaction).where(
+            PartTransaction.part_id == part.id,
+            PartTransaction.transaction_type == "out",
+        )
+    )
+
+    assert result.quantity == Decimal("3.00")
+    assert inventory.quantity_on_hand == Decimal("7.00")
+    assert tx is not None
+    assert tx.quantity == Decimal("3.00")
+    assert tx.reference == "WO:WO-PART-001:PART:" + str(part.id)
+    assert order.actual_cost == Decimal("450.00")
+
+
+def test_work_order_part_issuance_rejects_insufficient_stock(db: Session):
+    equipment, _ = seed(db)
+    part = Part(part_number="FLT-002", name="Hydraulic Filter", unit_cost=Decimal("100"))
+    db.add(part)
+    db.flush()
+    db.add(Inventory(part_id=part.id, quantity_on_hand=Decimal("2")))
+    order = create_work_order(
+        WorkOrderCreate(
+            work_order_number="WO-PART-002",
+            equipment_id=equipment.id,
+            title="Hydraulic filter replacement",
+        ),
+        db,
+    )
+    db.commit()
+
+    with pytest.raises(Exception):
+        add_work_order_part(
+            order.id,
+            WorkOrderPartCreate(part_id=part.id, quantity=Decimal("3")),
+            db,
+        )
+
+
+def test_return_work_order_part_restores_stock_and_reduces_cost(db: Session):
+    equipment, _ = seed(db)
+    part = Part(part_number="FLT-003", name="Fuel Filter", unit_cost=Decimal("200"))
+    db.add(part)
+    db.flush()
+    inventory = Inventory(part_id=part.id, quantity_on_hand=Decimal("10"))
+    db.add(inventory)
+    order = create_work_order(
+        WorkOrderCreate(
+            work_order_number="WO-PART-003",
+            equipment_id=equipment.id,
+            title="Fuel filter replacement",
+        ),
+        db,
+    )
+    db.commit()
+
+    item = add_work_order_part(
+        order.id,
+        WorkOrderPartCreate(part_id=part.id, quantity=Decimal("4")),
+        db,
+    )
+    returned = return_work_order_part(
+        order.id,
+        item.id,
+        WorkOrderPartReturn(quantity=Decimal("1"), notes="Unused filter"),
+        db,
+    )
+    db.refresh(inventory)
+    db.refresh(order)
+
+    assert returned.id == item.id
+    assert inventory.quantity_on_hand == Decimal("7.00")
+    assert order.actual_cost == Decimal("600.00")
+
+    with pytest.raises(Exception):
+        return_work_order_part(
+            order.id,
+            item.id,
+            WorkOrderPartReturn(quantity=Decimal("4")),
+            db,
+        )

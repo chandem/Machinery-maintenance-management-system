@@ -8,6 +8,7 @@ const links = [
   { to: "/maintenance", label: "Maintenance" },
   { to: "/inspections", label: "Inspections" },
   { to: "/inventory", label: "Inventory" },
+  { to: "/fuel", label: "Fuel & Costs" },
   { to: "/purchases", label: "Purchases" },
   { to: "/fleet-management", label: "Fleet Management" },
 ];

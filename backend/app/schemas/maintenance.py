@@ -146,3 +146,13 @@ class WorkOrderTaskRead(BaseModel):
     actual_hours: Optional[Decimal]
     notes: Optional[str]
     model_config = ConfigDict(from_attributes=True)
+
+
+class MaintenanceAnalyticsRead(BaseModel):
+    equipment_id: Optional[int] = None
+    preventive_work_orders: int
+    completed_preventive_work_orders: int
+    overdue_preventive_work_orders: int
+    preventive_completion_rate: Decimal
+    preventive_estimated_cost: Decimal
+    preventive_actual_cost: Decimal

@@ -20,6 +20,16 @@ export type DashboardSummary = {
   open_downtime_events?: number;
 };
 
+export type MaintenancePerformance = {
+  equipment_id: number;
+  breakdown_events: number;
+  breakdown_hours: number;
+  mttr_hours: number | null;
+  observation_hours: number;
+  operating_hours: number;
+  mtbf_hours: number | null;
+};
+
 export type Equipment = {
   id: number;
   asset_code: string;

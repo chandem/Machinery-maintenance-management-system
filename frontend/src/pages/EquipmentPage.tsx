@@ -12,9 +12,11 @@ export default function EquipmentPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", status: "operational" });
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
+    setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), page_size: "15" });
       if (search.trim()) params.set("search", search.trim());
@@ -23,6 +25,8 @@ export default function EquipmentPage() {
       setData(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load equipment");
+    } finally {
+      setLoading(false);
     }
   }, [page, search, status]);
 
@@ -61,7 +65,7 @@ export default function EquipmentPage() {
 
       <div className="panel">
         <div className="panel-header">
-          <h2>All equipment</h2>
+          <div><h2>All equipment</h2><div className="muted">{data ? `${data.total} assets in registry` : "Loading fleet registry…"}</div></div>
           <div className="toolbar">
             <input
               className="input"
@@ -123,10 +127,13 @@ export default function EquipmentPage() {
           </form>
         )}
 
-        {!data || data.items.length === 0 ? (
+        {loading ? (
+          <div className="empty">Loading equipment…</div>
+        ) : !data || data.items.length === 0 ? (
           <div className="empty">No equipment found. Add your first asset.</div>
         ) : (
           <>
+            <div className="table-scroll">
             <table>
               <thead>
                 <tr>
@@ -155,6 +162,7 @@ export default function EquipmentPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="pagination">
               <span>
                 Page {data.page} of {data.pages || 1} · {data.total} total

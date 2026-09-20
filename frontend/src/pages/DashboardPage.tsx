@@ -1,21 +1,23 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { DashboardSummary, Equipment, MaintenancePerformance, MaintenanceScheduleStatus } from "../api/types";
+import type { DashboardSummary, Equipment, MaintenanceAnalytics, MaintenancePerformance, MaintenanceScheduleStatus } from "../api/types";
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [schedule, setSchedule] = useState<MaintenanceScheduleStatus[]>([]);
   const [performance, setPerformance] = useState<Array<MaintenancePerformance & { equipment: Equipment }>>([]);
+  const [analytics, setAnalytics] = useState<MaintenanceAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, st, eq] = await Promise.all([
+        const [s, st, eq, an] = await Promise.all([
           api.get<DashboardSummary>("/api/v1/dashboard/summary"),
           api.get<MaintenanceScheduleStatus[]>("/api/v1/maintenance-plans/status"),
           api.get<{ items: Equipment[] }>("/api/v1/equipment?page=1&page_size=20"),
+          api.get<MaintenanceAnalytics>("/api/v1/maintenance/analytics"),
         ]);
         if (!cancelled) {
           setSummary(s);
@@ -27,6 +29,7 @@ export default function DashboardPage() {
             }))
           );
           setPerformance(results.filter((x) => x.breakdown_events > 0));
+          setAnalytics(an);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.detail : "Failed to load dashboard");
@@ -78,6 +81,14 @@ export default function DashboardPage() {
             <div className="label">Open downtime</div>
             <div className="value">{summary.open_downtime_events ?? 0}</div>
           </div>
+        </div>
+      )}
+
+      {analytics && analytics.preventive_work_orders > 0 && (
+        <div className="stats analytics-stats">
+          <div className="stat-card ok"><div className="label">PM completion</div><div className="value">{Number(analytics.preventive_completion_rate).toFixed(0)}%</div></div>
+          <div className={analytics.overdue_preventive_work_orders ? "stat-card danger" : "stat-card"}><div className="label">Overdue PM WOs</div><div className="value">{analytics.overdue_preventive_work_orders}</div></div>
+          <div className="stat-card"><div className="label">PM actual cost</div><div className="value">{Number(analytics.preventive_actual_cost).toLocaleString()}</div></div>
         </div>
       )}
 

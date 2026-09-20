@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
-import type { Equipment, FuelRecord, FuelSummary } from "../api/types";
+import type { Equipment, FuelRecord, FuelSummary, FuelOperatingCostSummary } from "../api/types";
 
 function money(value: number | null) {
   return value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -11,6 +11,7 @@ export default function FuelPage() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [records, setRecords] = useState<FuelRecord[]>([]);
   const [summary, setSummary] = useState<FuelSummary | null>(null);
+  const [operatingCosts, setOperatingCosts] = useState<FuelOperatingCostSummary | null>(null);
   const [equipmentId, setEquipmentId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -29,10 +30,15 @@ export default function FuelPage() {
       if (equipmentId) params.set("equipment_id", equipmentId);
       if (startDate) params.set("start_date", startDate);
       if (endDate) params.set("end_date", endDate);
-      const [eqPage, fuelPage, fuelSummary] = await Promise.all([
+      const [eqPage, fuelPage, fuelSummary, costSummary] = await Promise.all([
         api.get<Page<Equipment>>("/api/v1/equipment?page_size=100"),
         api.get<Page<FuelRecord>>(`/api/v1/fuel?${params.toString()}`),
         api.get<FuelSummary>(`/api/v1/fuel/summary?${new URLSearchParams({
+          ...(equipmentId ? { equipment_id: equipmentId } : {}),
+          ...(startDate ? { start_date: startDate } : {}),
+          ...(endDate ? { end_date: endDate } : {}),
+        }).toString()}`),
+        api.get<FuelOperatingCostSummary>(`/api/v1/fuel/operating-costs?${new URLSearchParams({
           ...(equipmentId ? { equipment_id: equipmentId } : {}),
           ...(startDate ? { start_date: startDate } : {}),
           ...(endDate ? { end_date: endDate } : {}),
@@ -41,6 +47,7 @@ export default function FuelPage() {
       setEquipment(eqPage.items);
       setRecords(fuelPage.items);
       setSummary(fuelSummary);
+      setOperatingCosts(costSummary);
       if (!form.equipment_id && eqPage.items.length) setForm((f) => ({ ...f, equipment_id: String(eqPage.items[0].id) }));
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load fuel data");
@@ -106,6 +113,26 @@ export default function FuelPage() {
           <input className="input" type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
           <input className="input" type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
         </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: "1rem" }}>
+        <div className="panel-header"><h2>Total operating cost</h2><span className="muted">Fuel + maintenance + parts + labor</span></div>
+        <div className="stats operating-cost-stats">
+          <div className="stat-card"><div className="label">Fuel</div><div className="value">{money(operatingCosts?.total_fuel_cost ?? null)}</div></div>
+          <div className="stat-card"><div className="label">Maintenance</div><div className="value">{money(operatingCosts?.total_maintenance_cost ?? null)}</div></div>
+          <div className="stat-card"><div className="label">Parts</div><div className="value">{money(operatingCosts?.total_parts_cost ?? null)}</div></div>
+          <div className="stat-card"><div className="label">Labor</div><div className="value">{money(operatingCosts?.total_labor_cost ?? null)}</div></div>
+          <div className="stat-card"><div className="label">Total</div><div className="value">{money(operatingCosts?.total_operating_cost ?? null)}</div></div>
+        </div>
+        <div className="table-scroll"><table className="fuel-table">
+          <thead><tr><th>Equipment</th><th>Fuel</th><th>Maintenance</th><th>Parts</th><th>Labor</th><th>Total</th><th>Cost/hour</th></tr></thead>
+          <tbody>{operatingCosts?.by_equipment.map((row) => (
+            <tr key={row.equipment_id}>
+              <td><Link to={`/equipment/${row.equipment_id}`} style={{ color: "var(--accent)" }}>{row.asset_code}</Link><div className="muted">{row.equipment_name}</div></td>
+              <td>{money(row.fuel_cost)}</td><td>{money(row.maintenance_cost)}</td><td>{money(row.parts_cost)}</td><td>{money(row.labor_cost)}</td><td><strong>{money(row.total_operating_cost)}</strong></td><td>{money(row.cost_per_hour)}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
       </div>
 
       <div className="panel" style={{ marginBottom: "1rem" }}>

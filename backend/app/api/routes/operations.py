@@ -2,7 +2,7 @@ from datetime import datetime, timezone, date, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_write_user
@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import Equipment
 from app.models.operations import DowntimeEvent, FuelRecord, Inspection
+from app.models.maintenance import WorkOrder, WorkOrderLabor, WorkOrderPart
 from app.models.user import User
 from app.schemas.operations import (
     DowntimeCreate,
@@ -24,6 +25,8 @@ from app.schemas.operations import (
     MaintenancePerformanceRead,
     FuelSummaryRead,
     FuelEquipmentSummaryRead,
+    FuelOperatingCostSummaryRead,
+    FuelOperatingCostEquipmentRead,
 )
 
 router = APIRouter(tags=["Operations"])
@@ -125,6 +128,78 @@ def list_fuel_records(
         query = query.where(FuelRecord.recorded_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
     return paginate(db, query, params, FuelRecordRead)
 
+
+
+@router.get("/fuel/operating-costs", response_model=FuelOperatingCostSummaryRead)
+def fuel_operating_costs(
+    equipment_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    db: Session = Depends(get_db),
+):
+    fuel_query = select(FuelRecord).order_by(FuelRecord.equipment_id, FuelRecord.recorded_at)
+    if equipment_id is not None:
+        fuel_query = fuel_query.where(FuelRecord.equipment_id == equipment_id)
+    if start_date is not None:
+        fuel_query = fuel_query.where(FuelRecord.recorded_at >= datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc))
+    if end_date is not None:
+        fuel_query = fuel_query.where(FuelRecord.recorded_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
+    fuels = list(db.scalars(fuel_query).all())
+
+    wo_query = select(WorkOrder).where(WorkOrder.status != "cancelled")
+    if equipment_id is not None:
+        wo_query = wo_query.where(WorkOrder.equipment_id == equipment_id)
+    orders = list(db.scalars(wo_query).all())
+
+    equipment_ids = {x.equipment_id for x in fuels} | {x.equipment_id for x in orders}
+    equipment_map = {x.id: x for x in db.scalars(select(Equipment).where(Equipment.id.in_(equipment_ids))).all()} if equipment_ids else {}
+    fuel_by: dict[int, Decimal] = {}
+    parts_by: dict[int, Decimal] = {}
+    labor_by: dict[int, Decimal] = {}
+    maintenance_by: dict[int, Decimal] = {}
+
+    for row in fuels:
+        fuel_by[row.equipment_id] = fuel_by.get(row.equipment_id, Decimal("0")) + Decimal(row.quantity or 0) * Decimal(row.unit_cost or 0)
+
+    for order in orders:
+        parts = db.scalars(select(WorkOrderPart).where(WorkOrderPart.work_order_id == order.id)).all()
+        parts_cost = sum((Decimal(p.quantity) * Decimal(p.unit_cost or 0) for p in parts), Decimal("0"))
+        labor_cost = db.scalar(
+            select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0))
+            .where(WorkOrderLabor.work_order_id == order.id)
+        ) or Decimal("0")
+        parts_by[order.equipment_id] = parts_by.get(order.equipment_id, Decimal("0")) + parts_cost
+        labor_by[order.equipment_id] = labor_by.get(order.equipment_id, Decimal("0")) + Decimal(labor_cost)
+        maintenance_by[order.equipment_id] = maintenance_by.get(order.equipment_id, Decimal("0")) + Decimal(order.actual_cost or 0)
+
+    rows = []
+    for eid in equipment_ids:
+        eq = equipment_map[eid]
+        fuel = fuel_by.get(eid, Decimal("0"))
+        parts = parts_by.get(eid, Decimal("0"))
+        labor = labor_by.get(eid, Decimal("0"))
+        maintenance = maintenance_by.get(eid, Decimal("0"))
+        total = fuel + maintenance + parts + labor
+        hours = Decimal(eq.hour_meter) if eq.hour_meter is not None else None
+        rows.append(FuelOperatingCostEquipmentRead(
+            equipment_id=eid, asset_code=eq.asset_code, equipment_name=eq.name,
+            fuel_cost=fuel.quantize(Decimal("0.01")),
+            maintenance_cost=maintenance.quantize(Decimal("0.01")),
+            parts_cost=parts.quantize(Decimal("0.01")),
+            labor_cost=labor.quantize(Decimal("0.01")),
+            total_operating_cost=total.quantize(Decimal("0.01")),
+            hours_used=hours.quantize(Decimal("0.01")) if hours and hours > 0 else None,
+            cost_per_hour=(total / hours).quantize(Decimal("0.01")) if hours and hours > 0 else None,
+        ))
+    rows.sort(key=lambda x: x.total_operating_cost, reverse=True)
+    return FuelOperatingCostSummaryRead(
+        total_fuel_cost=sum((x.fuel_cost for x in rows), Decimal("0")),
+        total_maintenance_cost=sum((x.maintenance_cost for x in rows), Decimal("0")),
+        total_parts_cost=sum((x.parts_cost for x in rows), Decimal("0")),
+        total_labor_cost=sum((x.labor_cost for x in rows), Decimal("0")),
+        total_operating_cost=sum((x.total_operating_cost for x in rows), Decimal("0")),
+        by_equipment=rows,
+    )
 
 
 @router.get("/fuel/summary", response_model=FuelSummaryRead)

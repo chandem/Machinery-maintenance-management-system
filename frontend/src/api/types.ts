@@ -163,6 +163,16 @@ export type Part = {
   supplier_id: number | null;
 };
 
+export type PartTransaction = {
+  id: number;
+  part_id: number;
+  transaction_type: "in" | "out" | "adjustment";
+  quantity: number;
+  unit_cost: number | null;
+  reference: string | null;
+  notes: string | null;
+};
+
 export type Inspection = {
   id: number;
   equipment_id: number;

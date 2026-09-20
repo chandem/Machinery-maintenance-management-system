@@ -235,3 +235,25 @@ export const WO_NEXT: Record<string, string[]> = {
   closed: [],
   cancelled: [],
 };
+
+
+export type FuelEquipmentSummary = {
+  equipment_id: number;
+  asset_code: string;
+  equipment_name: string;
+  quantity: number;
+  fuel_cost: number;
+  average_unit_cost: number | null;
+  hours_used: number | null;
+  km_used: number | null;
+  liters_per_hour: number | null;
+  liters_per_km: number | null;
+};
+
+export type FuelSummary = {
+  total_records: number;
+  total_quantity: number;
+  total_fuel_cost: number;
+  average_unit_cost: number | null;
+  by_equipment: FuelEquipmentSummary[];
+};

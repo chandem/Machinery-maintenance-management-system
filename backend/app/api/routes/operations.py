@@ -111,12 +111,18 @@ def create_fuel_record(
 @router.get("/fuel", response_model=Page[FuelRecordRead])
 def list_fuel_records(
     equipment_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     params: PageParams = Depends(),
     db: Session = Depends(get_db),
 ):
     query = select(FuelRecord).order_by(FuelRecord.recorded_at.desc())
     if equipment_id is not None:
         query = query.where(FuelRecord.equipment_id == equipment_id)
+    if start_date is not None:
+        query = query.where(FuelRecord.recorded_at >= datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc))
+    if end_date is not None:
+        query = query.where(FuelRecord.recorded_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc))
     return paginate(db, query, params, FuelRecordRead)
 
 

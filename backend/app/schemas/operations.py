@@ -79,3 +79,13 @@ class DowntimeSummaryRead(BaseModel):
     breakdown_hours: Decimal
     maintenance_hours: Decimal
     other_hours: Decimal
+
+
+class MaintenancePerformanceRead(BaseModel):
+    equipment_id: int
+    breakdown_events: int
+    breakdown_hours: Decimal
+    mttr_hours: Optional[Decimal]
+    observation_hours: Decimal
+    operating_hours: Decimal
+    mtbf_hours: Optional[Decimal]

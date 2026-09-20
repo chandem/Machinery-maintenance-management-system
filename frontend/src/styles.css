@@ -578,3 +578,8 @@ a:focus-visible {
 .equipment-stats { margin-bottom: 1.5rem; }
 .equipment-table { min-width: 980px; }
 @media (max-width: 700px) { .equipment-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+
+.equipment-create-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; }
+.equipment-create-grid textarea { resize: vertical; }
+@media (max-width: 600px) { .equipment-create-grid { grid-template-columns: 1fr; } }

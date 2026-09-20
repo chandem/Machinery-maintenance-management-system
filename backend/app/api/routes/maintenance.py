@@ -113,7 +113,10 @@ def list_maintenance_plans(
 
 @router.post("/maintenance-plans/{plan_id}/complete", response_model=MaintenancePlanRead)
 def complete_maintenance_service(
-    plan_id: int, payload: MaintenanceServiceComplete, db: Session = Depends(get_db)
+    plan_id: int,
+    payload: MaintenanceServiceComplete,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     plan = db.get(MaintenancePlan, plan_id)
     if plan is None:
@@ -230,7 +233,10 @@ def get_work_order(work_order_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/work-orders/{work_order_id}", response_model=WorkOrderRead)
 def update_work_order(
-    work_order_id: int, payload: WorkOrderUpdate, db: Session = Depends(get_db)
+    work_order_id: int,
+    payload: WorkOrderUpdate,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
@@ -239,6 +245,20 @@ def update_work_order(
 
     if "status" in changes and changes["status"] is not None:
         _validate_status_transition(order.status, changes["status"])
+        if changes["status"] == "closed" and order.maintenance_type == "preventive":
+            incomplete = db.scalar(
+                select(func.count())
+                .select_from(WorkOrderTask)
+                .where(
+                    WorkOrderTask.work_order_id == work_order_id,
+                    WorkOrderTask.status != "done",
+                )
+            ) or 0
+            if incomplete:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot close preventive work order with {incomplete} incomplete task(s)",
+                )
         now = datetime.now(timezone.utc)
         new_status = changes["status"]
         if new_status == "in_progress" and order.started_at is None:
@@ -305,7 +325,10 @@ def get_work_order_cost(work_order_id: int, db: Session = Depends(get_db)):
     status_code=status.HTTP_201_CREATED,
 )
 def add_work_order_part(
-    work_order_id: int, payload: WorkOrderPartCreate, db: Session = Depends(get_db)
+    work_order_id: int,
+    payload: WorkOrderPartCreate,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
@@ -368,6 +391,7 @@ def return_work_order_part(
     work_order_part_id: int,
     payload: WorkOrderPartReturn,
     db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
@@ -412,7 +436,10 @@ def return_work_order_part(
     status_code=status.HTTP_201_CREATED,
 )
 def add_work_order_labor(
-    work_order_id: int, payload: WorkOrderLaborCreate, db: Session = Depends(get_db)
+    work_order_id: int,
+    payload: WorkOrderLaborCreate,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
@@ -442,7 +469,10 @@ def list_work_order_labor(work_order_id: int, db: Session = Depends(get_db)):
     status_code=status.HTTP_201_CREATED,
 )
 def add_work_order_task(
-    work_order_id: int, payload: WorkOrderTaskCreate, db: Session = Depends(get_db)
+    work_order_id: int,
+    payload: WorkOrderTaskCreate,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     if db.get(WorkOrder, work_order_id) is None:
         raise HTTPException(404, "Work order not found")
@@ -473,6 +503,7 @@ def update_work_order_task(
     task_id: int,
     payload: WorkOrderTaskUpdate,
     db: Session = Depends(get_db),
+    _: object = Depends(require_write_user),
 ):
     item = db.get(WorkOrderTask, task_id)
     if item is None or item.work_order_id != work_order_id:

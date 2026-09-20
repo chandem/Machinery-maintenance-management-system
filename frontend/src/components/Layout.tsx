@@ -11,6 +11,7 @@ const links = [
   { to: "/fuel", label: "Fuel & Costs" },
   { to: "/purchases", label: "Purchases" },
   { to: "/fleet-management", label: "Fleet Management" },
+  { to: "/reports", label: "Reports" },
 ];
 
 export default function Layout() {

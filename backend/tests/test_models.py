@@ -4,12 +4,14 @@ from app.core.database import Base
 from app.models import (  # noqa: F401
     DowntimeEvent,
     Equipment,
+    EquipmentDocument,
     FuelRecord,
     Inspection,
     Inventory,
     MaintenancePlan,
     Part,
     PartTransaction,
+    PurchaseRequest,
     Supplier,
     User,
     WorkOrder,
@@ -40,5 +42,7 @@ def test_model_mappers_configure():
         "inspections",
         "fuel_records",
         "downtime_events",
+        "purchase_requests",
+        "equipment_documents",
     }
     assert expected.issubset(set(Base.metadata.tables))

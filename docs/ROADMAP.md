@@ -1,28 +1,18 @@
 # MMMS Roadmap
 
-## Phase 1 — Foundation
-- [x] FastAPI, Alembic, JWT, pagination, Docker, React shell, CI
-- [x] Auth required on write endpoints (`REQUIRE_AUTH_WRITES`)
+## Done (through v0.4)
+- [x] Foundation: FastAPI, Alembic, JWT, pagination, Docker, React
+- [x] Auth on write endpoints
+- [x] Equipment, meters, QR, edit profile
+- [x] Maintenance plans, WO lifecycle, parts/labor/tasks
+- [x] Inventory, purchases
+- [x] Inspections, fuel, downtime
+- [x] Cost & availability reports
+- [x] Equipment document metadata (URL-based)
 
-## Phase 2 — Equipment
-- [x] CRUD, detail, meters, status, categories/locations/operators API
-- [x] QR identification payload + image URL on equipment detail
-- [ ] Document uploads
-
-## Phase 3 — Maintenance
-- [x] Plans (API + create UI), schedule status, work orders + lifecycle
-- [x] Parts, labor, tasks, cost on WO detail
-
-## Phase 4 — Operations
-- [x] Inspections (API + UI)
-- [x] Fuel (API + equipment UI)
-- [x] Downtime (API + equipment UI)
-- [ ] Richer defect workflow / availability KPIs
-
-## Phase 5 — Inventory & Purchasing
-- [x] Parts, stock, transactions, dashboard
-- [x] Purchase requests (API + UI lifecycle)
-- [ ] Cost / utilization reports
-
-## Phase 6 — Advanced
-- [ ] Notifications, telematics, predictive, multi-tenant
+## Remaining
+- [ ] Binary document upload / object storage
+- [ ] Notifications & email alerts
+- [ ] Telematics / predictive maintenance
+- [ ] Multi-tenant / multi-site
+- [ ] Mobile / PWA offline mode

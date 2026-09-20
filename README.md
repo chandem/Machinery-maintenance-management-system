@@ -1,6 +1,6 @@
 # Machinery Maintenance Management System (MMMS)
 
-A web-based system for managing construction and industrial machinery, maintenance, inspections, work orders, spare parts, operators, costs, and equipment availability.
+Web CMMS for construction and industrial machinery: assets, maintenance, work orders, spare parts, inspections, fuel, downtime, purchases, and reports.
 
 ## Quick start (Docker)
 
@@ -14,57 +14,38 @@ docker compose up --build
 | **API** | http://localhost:8000 |
 | **API docs** | http://localhost:8000/docs |
 
-Register the first user in the UI (becomes **admin**), or via API:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","full_name":"Admin","password":"secret123"}'
-```
-
-## Local development
-
-### Backend
-
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# start Postgres, then:
-alembic upgrade head
-uvicorn app.main:app --reload
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Vite proxies `/api` → `http://localhost:8000`.
+Register the first user in the UI (becomes **admin**). Write endpoints require JWT when `REQUIRE_AUTH_WRITES=true`.
 
 ## Stack
 
-- **Backend:** FastAPI, SQLAlchemy, Alembic, PostgreSQL, JWT auth
+- **Backend:** FastAPI, SQLAlchemy, Alembic, PostgreSQL, JWT
 - **Frontend:** React 18, TypeScript, Vite, React Router
 
-## Current capabilities (v0.3 + frontend shell)
+## Capabilities (v0.4)
 
-### API
-Auth, dashboard summary, equipment (CRUD + filters + pagination), categories/locations/operators, meter readings, maintenance plans & schedule status, work orders (lifecycle, parts, labor, cost), inventory.
+- Auth (register/login, roles)
+- Equipment CRUD, meters, QR, categories/locations/operators
+- Maintenance plans + schedule status + analytics
+- Work orders (lifecycle, parts, labor, tasks, cost)
+- Inventory, stock status, transactions
+- Inspections, fuel, downtime
+- Purchase requests
+- Equipment document metadata (URL links)
+- Reports: cost by asset, fleet availability
+- Dashboard KPIs
 
-### UI
-- Login / register
-- Dashboard KPIs + due/overdue plans
-- Equipment list (search, status filter, create, pagination)
-- Work orders list (status filter, pagination)
-- Maintenance schedule view
+## Local development
 
-## Status
+```bash
+# Backend
+cd backend && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload
 
-Backend foundation + React shell are in place. Next: richer detail pages, inventory UI, and locking API routes behind auth.
+# Frontend
+cd frontend && npm install && npm run dev
+```
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).

@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
 import type { DowntimeEvent, Equipment, FuelRecord, MaintenancePlan, MeterReading, WorkOrder } from "../api/types";
+import DocumentsPanel from "../components/DocumentsPanel";
 
-type QrInfo = { payload: string; qr_image_url: string; asset_code: string };\ntype Operator = { id: number; employee_code: string; full_name: string; active: boolean };
+type QrInfo = { payload: string; qr_image_url: string; asset_code: string };
+type Operator = { id: number; employee_code: string; full_name: string; active: boolean };
 
 export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -12,7 +14,10 @@ export default function EquipmentDetailPage() {
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [fuel, setFuel] = useState<FuelRecord[]>([]);
   const [downtime, setDowntime] = useState<DowntimeEvent[]>([]);
-  const [plans, setPlans] = useState<MaintenancePlan[]>([]);\n  const [operators, setOperators] = useState<Operator[]>([]);\n  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);\n  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
+  const [plans, setPlans] = useState<MaintenancePlan[]>([]);
+  const [operators, setOperators] = useState<Operator[]>([]);
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [qr, setQr] = useState<QrInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [meterType, setMeterType] = useState("hour_meter");
@@ -25,28 +30,46 @@ export default function EquipmentDetailPage() {
   const [statusBusy, setStatusBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", warranty_expiry: "", category_id: "", location_id: "", operator_id: "", notes: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    manufacturer: "",
+    model: "",
+    serial_number: "",
+    plate_number: "",
+    warranty_expiry: "",
+    category_id: "",
+    location_id: "",
+    operator_id: "",
+    notes: "",
+  });
 
   const load = useCallback(async () => {
     if (!id) return;
     setError(null);
     try {
-      const [equipment, meterPage, woPage, fuelPage, dtPage, planPage, qrInfo, ops, cats, locs] = await Promise.all([
-        api.get<Equipment>(`/api/v1/equipment/${id}`),
-        api.get<Page<MeterReading>>(`/api/v1/equipment/meter-readings?equipment_id=${id}&page_size=8`),
-        api.get<Page<WorkOrder>>(`/api/v1/work-orders?equipment_id=${id}&page_size=8`),
-        api.get<Page<FuelRecord>>(`/api/v1/fuel?equipment_id=${id}&page_size=8`),
-        api.get<Page<DowntimeEvent>>(`/api/v1/downtime?equipment_id=${id}&page_size=8`),
-        api.get<Page<MaintenancePlan>>(`/api/v1/maintenance-plans?equipment_id=${id}&active_only=true&page_size=20`),
-        api.get<QrInfo>(`/api/v1/equipment/${id}/qr`).catch(() => null),\n        api.get<Operator[]>(`/api/v1/equipment/operators?active_only=false`),\n        api.get<{ id: number; name: string }[]>(`/api/v1/equipment/categories`),\n        api.get<{ id: number; name: string }[]>(`/api/v1/equipment/locations`),
-      ]);
+      const [equipment, meterPage, woPage, fuelPage, dtPage, planPage, qrInfo, ops, cats, locs] =
+        await Promise.all([
+          api.get<Equipment>(`/api/v1/equipment/${id}`),
+          api.get<Page<MeterReading>>(`/api/v1/equipment/meter-readings?equipment_id=${id}&page_size=8`),
+          api.get<Page<WorkOrder>>(`/api/v1/work-orders?equipment_id=${id}&page_size=8`),
+          api.get<Page<FuelRecord>>(`/api/v1/fuel?equipment_id=${id}&page_size=8`),
+          api.get<Page<DowntimeEvent>>(`/api/v1/downtime?equipment_id=${id}&page_size=8`),
+          api.get<Page<MaintenancePlan>>(`/api/v1/maintenance-plans?equipment_id=${id}&active_only=true&page_size=20`),
+          api.get<QrInfo>(`/api/v1/equipment/${id}/qr`).catch(() => null),
+          api.get<Operator[]>(`/api/v1/equipment/operators?active_only=false`),
+          api.get<{ id: number; name: string }[]>(`/api/v1/equipment/categories`),
+          api.get<{ id: number; name: string }[]>(`/api/v1/equipment/locations`),
+        ]);
       setEq(equipment);
       setReadings(meterPage.items);
       setOrders(woPage.items);
       setFuel(fuelPage.items);
       setDowntime(dtPage.items);
       setPlans(planPage.items);
-      setQr(qrInfo);\n      setOperators(ops);\n      setCategories(cats);\n      setLocations(locs);
+      setQr(qrInfo);
+      setOperators(ops);
+      setCategories(cats);
+      setLocations(locs);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load equipment");
     }
@@ -131,19 +154,46 @@ export default function EquipmentDetailPage() {
   }
 
   function startEdit() {
-    setEditForm({ name: eq?.name ?? "", manufacturer: eq?.manufacturer ?? "", model: eq?.model ?? "", serial_number: eq?.serial_number ?? "", plate_number: eq?.plate_number ?? "", warranty_expiry: eq?.warranty_expiry ?? "", category_id: eq?.category_id ? String(eq.category_id) : "", location_id: eq?.location_id ? String(eq.location_id) : "", operator_id: eq?.operator_id ? String(eq.operator_id) : "", notes: eq?.notes ?? "" });
+    setEditForm({
+      name: eq?.name ?? "",
+      manufacturer: eq?.manufacturer ?? "",
+      model: eq?.model ?? "",
+      serial_number: eq?.serial_number ?? "",
+      plate_number: eq?.plate_number ?? "",
+      warranty_expiry: eq?.warranty_expiry ?? "",
+      category_id: eq?.category_id ? String(eq.category_id) : "",
+      location_id: eq?.location_id ? String(eq.location_id) : "",
+      operator_id: eq?.operator_id ? String(eq.operator_id) : "",
+      notes: eq?.notes ?? "",
+    });
     setEditing(true);
   }
 
   async function saveEdit(e: FormEvent) {
     e.preventDefault();
     if (!id) return;
-    setEditBusy(true); setError(null);
+    setEditBusy(true);
+    setError(null);
     try {
-      const updated = await api.patch<Equipment>(`/api/v1/equipment/${id}`, { ...editForm, manufacturer: editForm.manufacturer || null, model: editForm.model || null, serial_number: editForm.serial_number || null, plate_number: editForm.plate_number || null, warranty_expiry: editForm.warranty_expiry || null, category_id: editForm.category_id ? Number(editForm.category_id) : null, location_id: editForm.location_id ? Number(editForm.location_id) : null, operator_id: editForm.operator_id ? Number(editForm.operator_id) : null, notes: editForm.notes || null });
-      setEq(updated); setEditing(false);
-    } catch (err) { setError(err instanceof ApiError ? err.detail : "Equipment update failed"); }
-    finally { setEditBusy(false); }
+      const updated = await api.patch<Equipment>(`/api/v1/equipment/${id}`, {
+        ...editForm,
+        manufacturer: editForm.manufacturer || null,
+        model: editForm.model || null,
+        serial_number: editForm.serial_number || null,
+        plate_number: editForm.plate_number || null,
+        warranty_expiry: editForm.warranty_expiry || null,
+        category_id: editForm.category_id ? Number(editForm.category_id) : null,
+        location_id: editForm.location_id ? Number(editForm.location_id) : null,
+        operator_id: editForm.operator_id ? Number(editForm.operator_id) : null,
+        notes: editForm.notes || null,
+      });
+      setEq(updated);
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Equipment update failed");
+    } finally {
+      setEditBusy(false);
+    }
   }
 
   async function updateStatus(status: string) {
@@ -183,7 +233,9 @@ export default function EquipmentDetailPage() {
           <span className={`badge badge-${eq.status}`}>{eq.status.replace(/_/g, " ")}</span>
         </div>
         <div className="toolbar">
-          <button type="button" className="btn btn-primary btn-sm" onClick={startEdit}>Edit asset</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={startEdit}>
+            Edit asset
+          </button>
           {(["operational", "maintenance", "down", "out_of_service"] as const).map((s) => (
             <button
               key={s}
@@ -198,39 +250,136 @@ export default function EquipmentDetailPage() {
         </div>
       </div>
 
-      {error && <div className="error-msg" style={{ marginTop: "1rem" }}>{error}</div>}
+      {error && (
+        <div className="error-msg" style={{ marginTop: "1rem" }}>
+          {error}
+        </div>
+      )}
 
       {editing && (
         <div className="panel" style={{ marginTop: "1rem" }}>
-          <div className="panel-header"><h2>Edit asset information</h2><button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>Cancel</button></div>
+          <div className="panel-header">
+            <h2>Edit asset information</h2>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          </div>
           <form onSubmit={saveEdit} style={{ padding: "1rem 1.15rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
-              <div className="form-group" style={{ margin: 0 }}><label>Name</label><input className="input" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
-              <div className="form-group" style={{ margin: 0 }}><label>Manufacturer</label><input className="input" value={editForm.manufacturer} onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div>
-              <div className="form-group" style={{ margin: 0 }}><label>Model</label><input className="input" value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })} /></div>
-              <div className="form-group" style={{ margin: 0 }}><label>Serial number</label><input className="input" value={editForm.serial_number} onChange={(e) => setEditForm({ ...editForm, serial_number: e.target.value })} /></div>
-              <div className="form-group" style={{ margin: 0 }}><label>Plate number</label><input className="input" value={editForm.plate_number} onChange={(e) => setEditForm({ ...editForm, plate_number: e.target.value })} /></div>
-              <div className="form-group" style={{ margin: 0 }}><label>Warranty expiry</label><input className="input" type="date" value={editForm.warranty_expiry} onChange={(e) => setEditForm({ ...editForm, warranty_expiry: e.target.value })} /></div>
-              <div className="form-group" style={{ margin: 0 }}><label>Category</label><select className="input" value={editForm.category_id} onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })}><option value="">Unassigned</option>{categories.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>\n              <div className="form-group" style={{ margin: 0 }}><label>Location</label><select className="input" value={editForm.location_id} onChange={(e) => setEditForm({ ...editForm, location_id: e.target.value })}><option value="">Unassigned</option>{locations.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></div>\n              <div className="form-group" style={{ margin: 0 }}><label>Operator</label><select className="input" value={editForm.operator_id} onChange={(e) => setEditForm({ ...editForm, operator_id: e.target.value })}><option value="">Unassigned</option>{operators.map(x => <option key={x.id} value={x.id}>{x.employee_code} — {x.full_name}</option>)}</select></div>\n              <div className="form-group" style={{ margin: 0, gridColumn: "1 / -1" }}><label>Notes</label><textarea className="input" rows={3} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} /></div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Name</label>
+                <input className="input" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Manufacturer</label>
+                <input className="input" value={editForm.manufacturer} onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Model</label>
+                <input className="input" value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Serial number</label>
+                <input className="input" value={editForm.serial_number} onChange={(e) => setEditForm({ ...editForm, serial_number: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Plate number</label>
+                <input className="input" value={editForm.plate_number} onChange={(e) => setEditForm({ ...editForm, plate_number: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Warranty expiry</label>
+                <input className="input" type="date" value={editForm.warranty_expiry} onChange={(e) => setEditForm({ ...editForm, warranty_expiry: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Category</label>
+                <select className="input" value={editForm.category_id} onChange={(e) => setEditForm({ ...editForm, category_id: e.target.value })}>
+                  <option value="">Unassigned</option>
+                  {categories.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Location</label>
+                <select className="input" value={editForm.location_id} onChange={(e) => setEditForm({ ...editForm, location_id: e.target.value })}>
+                  <option value="">Unassigned</option>
+                  {locations.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Operator</label>
+                <select className="input" value={editForm.operator_id} onChange={(e) => setEditForm({ ...editForm, operator_id: e.target.value })}>
+                  <option value="">Unassigned</option>
+                  {operators.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.employee_code} — {x.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0, gridColumn: "1 / -1" }}>
+                <label>Notes</label>
+                <textarea className="input" rows={3} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
+              </div>
             </div>
-            <button type="submit" className="btn btn-primary btn-sm" style={{ marginTop: "0.75rem" }} disabled={editBusy}>{editBusy ? "Saving…" : "Save changes"}</button>
+            <button type="submit" className="btn btn-primary btn-sm" style={{ marginTop: "0.75rem" }} disabled={editBusy}>
+              {editBusy ? "Saving…" : "Save changes"}
+            </button>
           </form>
         </div>
       )}
 
       <div className="panel asset-profile" style={{ marginTop: "1.25rem" }}>
-        <div className="panel-header"><h2>Asset profile</h2><span className="muted">Registry information</span></div>
-        <div className="asset-profile-grid">
-          <div><span className="muted">Category</span><strong>{categories.find(x => x.id === eq.category_id)?.name ?? "—"}</strong></div>
-          <div><span className="muted">Location</span><strong>{locations.find(x => x.id === eq.location_id)?.name ?? "—"}</strong></div>
-          <div><span className="muted">Operator</span><strong>{operators.find(x => x.id === eq.operator_id)?.full_name ?? "Unassigned"}</strong></div>
-          <div><span className="muted">Plate number</span><strong>{eq.plate_number ?? "—"}</strong></div>
-          <div><span className="muted">Purchase date</span><strong>{eq.purchase_date ?? "—"}</strong></div>
-          <div><span className="muted">Purchase cost</span><strong>{eq.purchase_cost != null ? Number(eq.purchase_cost).toLocaleString() : "—"}</strong></div>
-          <div><span className="muted">Warranty expiry</span><strong>{eq.warranty_expiry ?? "—"}</strong></div>
-          <div><span className="muted">Record created</span><strong>{new Date(eq.created_at).toLocaleDateString()}</strong></div>
+        <div className="panel-header">
+          <h2>Asset profile</h2>
+          <span className="muted">Registry information</span>
         </div>
-        {eq.notes && <div className="asset-notes"><span className="muted">Notes</span><div>{eq.notes}</div></div>}
+        <div className="asset-profile-grid">
+          <div>
+            <span className="muted">Category</span>
+            <strong>{categories.find((x) => x.id === eq.category_id)?.name ?? "—"}</strong>
+          </div>
+          <div>
+            <span className="muted">Location</span>
+            <strong>{locations.find((x) => x.id === eq.location_id)?.name ?? "—"}</strong>
+          </div>
+          <div>
+            <span className="muted">Operator</span>
+            <strong>{operators.find((x) => x.id === eq.operator_id)?.full_name ?? "Unassigned"}</strong>
+          </div>
+          <div>
+            <span className="muted">Plate number</span>
+            <strong>{eq.plate_number ?? "—"}</strong>
+          </div>
+          <div>
+            <span className="muted">Purchase date</span>
+            <strong>{eq.purchase_date ?? "—"}</strong>
+          </div>
+          <div>
+            <span className="muted">Purchase cost</span>
+            <strong>{eq.purchase_cost != null ? Number(eq.purchase_cost).toLocaleString() : "—"}</strong>
+          </div>
+          <div>
+            <span className="muted">Warranty expiry</span>
+            <strong>{eq.warranty_expiry ?? "—"}</strong>
+          </div>
+          <div>
+            <span className="muted">Record created</span>
+            <strong>{new Date(eq.created_at).toLocaleDateString()}</strong>
+          </div>
+        </div>
+        {eq.notes && (
+          <div className="asset-notes">
+            <span className="muted">Notes</span>
+            <div>{eq.notes}</div>
+          </div>
+        )}
       </div>
 
       <div className="stats" style={{ marginTop: "1.5rem" }}>
@@ -396,28 +545,6 @@ export default function EquipmentDetailPage() {
 
         <div className="panel">
           <div className="panel-header">
-            <h2>Maintenance plans</h2>
-            <Link to="/maintenance" className="btn btn-ghost btn-sm">Schedule</Link>
-          </div>
-          {plans.length === 0 ? (
-            <div className="empty">No active maintenance plans.</div>
-          ) : (
-            <table>
-              <thead><tr><th>Plan</th><th>Next due</th><th>Meter</th></tr></thead>
-              <tbody>
-                {plans.map((plan) => (
-                  <tr key={plan.id}>
-                    <td><strong>{plan.name}</strong><div className="muted">{plan.maintenance_type}</div></td>
-                    <td>{plan.next_due_date ?? "—"}</td>
-                    <td>{plan.next_due_meter != null ? Number(plan.next_due_meter).toLocaleString() : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-        <div className="panel">
-          <div className="panel-header">
             <h2>Work orders</h2>
             <Link to="/work-orders" className="btn btn-ghost btn-sm">
               All WOs
@@ -452,6 +579,34 @@ export default function EquipmentDetailPage() {
             </table>
           )}
         </div>
+
+        {plans.length > 0 && (
+          <div className="panel">
+            <div className="panel-header">
+              <h2>Maintenance plans</h2>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Next due</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plans.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.name}</td>
+                    <td>{p.next_due_date ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: "1rem" }}>
+        <DocumentsPanel equipmentId={eq.id} />
       </div>
     </div>
   );

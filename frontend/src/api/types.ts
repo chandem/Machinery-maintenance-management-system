@@ -257,3 +257,26 @@ export type FuelSummary = {
   average_unit_cost: number | null;
   by_equipment: FuelEquipmentSummary[];
 };
+
+
+export type FuelOperatingCostEquipment = {
+  equipment_id: number;
+  asset_code: string;
+  equipment_name: string;
+  fuel_cost: number;
+  maintenance_cost: number;
+  parts_cost: number;
+  labor_cost: number;
+  total_operating_cost: number;
+  hours_used: number | null;
+  cost_per_hour: number | null;
+};
+
+export type FuelOperatingCostSummary = {
+  total_fuel_cost: number;
+  total_maintenance_cost: number;
+  total_parts_cost: number;
+  total_labor_cost: number;
+  total_operating_cost: number;
+  by_equipment: FuelOperatingCostEquipment[];
+};

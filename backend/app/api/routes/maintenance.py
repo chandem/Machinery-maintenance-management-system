@@ -225,6 +225,17 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), _
             raise HTTPException(404, "Maintenance plan not found")
         if plan.equipment_id != payload.equipment_id:
             raise HTTPException(400, "Maintenance plan does not belong to this equipment")
+        open_plan_order = db.scalar(
+            select(WorkOrder).where(
+                WorkOrder.maintenance_plan_id == payload.maintenance_plan_id,
+                WorkOrder.status.not_in(["completed", "verified", "closed", "cancelled"]),
+            )
+        )
+        if open_plan_order is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"An open work order already exists for this maintenance plan: {open_plan_order.work_order_number}",
+            )
     if db.scalar(select(WorkOrder).where(WorkOrder.work_order_number == payload.work_order_number)):
         raise HTTPException(409, "Work order number already exists")
     order = WorkOrder(**payload.model_dump())

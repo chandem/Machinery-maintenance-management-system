@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from typing import Optional
 
@@ -31,6 +31,28 @@ class InspectionRead(InspectionCreate):
     inspected_at: datetime
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class FuelOperatingCostEquipmentRead(BaseModel):
+    equipment_id: int
+    asset_code: str
+    equipment_name: str
+    fuel_cost: Decimal
+    maintenance_cost: Decimal
+    parts_cost: Decimal
+    labor_cost: Decimal
+    total_operating_cost: Decimal
+    hours_used: Optional[Decimal]
+    cost_per_hour: Optional[Decimal]
+
+
+class FuelOperatingCostSummaryRead(BaseModel):
+    total_fuel_cost: Decimal
+    total_maintenance_cost: Decimal
+    total_parts_cost: Decimal
+    total_labor_cost: Decimal
+    total_operating_cost: Decimal
+    by_equipment: list[FuelOperatingCostEquipmentRead]
 
 
 class FuelRecordCreate(BaseModel):

@@ -21,6 +21,7 @@ from app.schemas.operations import (
     InspectionRead,
     InspectionUpdate,
     DowntimeSummaryRead,
+    MaintenancePerformanceRead,
 )
 
 router = APIRouter(tags=["Operations"])
@@ -201,4 +202,53 @@ def downtime_summary(equipment_id: int, db: Session = Depends(get_db)):
         breakdown_hours=breakdown.quantize(Decimal("0.01")),
         maintenance_hours=maintenance.quantize(Decimal("0.01")),
         other_hours=(total - breakdown - maintenance).quantize(Decimal("0.01")),
+    )
+
+
+@router.get("/maintenance/performance", response_model=MaintenancePerformanceRead)
+def maintenance_performance(equipment_id: int, db: Session = Depends(get_db)):
+    equipment = db.get(Equipment, equipment_id)
+    if equipment is None:
+        raise HTTPException(404, "Equipment not found")
+    rows = db.scalars(
+        select(DowntimeEvent)
+        .where(DowntimeEvent.equipment_id == equipment_id, DowntimeEvent.category == "breakdown")
+        .order_by(DowntimeEvent.started_at)
+    ).all()
+    if not rows:
+        return MaintenancePerformanceRead(
+            equipment_id=equipment_id,
+            breakdown_events=0,
+            breakdown_hours=Decimal("0.00"),
+            mttr_hours=None,
+            observation_hours=Decimal("0.00"),
+            operating_hours=Decimal("0.00"),
+            mtbf_hours=None,
+        )
+    now = datetime.now(timezone.utc)
+    first = rows[0].started_at
+    if first.tzinfo is None:
+        first = first.replace(tzinfo=timezone.utc)
+    observation = Decimal(str(max((now - first).total_seconds(), 0) / 3600))
+    breakdown_hours = Decimal("0")
+    for event in rows:
+        start = event.started_at
+        end = event.ended_at or now
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        breakdown_hours += Decimal(str(max((end - start).total_seconds(), 0) / 3600))
+    operating = max(observation - breakdown_hours, Decimal("0"))
+    failures = len(rows)
+    mttr = breakdown_hours / failures
+    mtbf = operating / failures if operating > 0 else None
+    return MaintenancePerformanceRead(
+        equipment_id=equipment_id,
+        breakdown_events=failures,
+        breakdown_hours=breakdown_hours.quantize(Decimal("0.01")),
+        mttr_hours=mttr.quantize(Decimal("0.01")),
+        observation_hours=observation.quantize(Decimal("0.01")),
+        operating_hours=operating.quantize(Decimal("0.01")),
+        mtbf_hours=mtbf.quantize(Decimal("0.01")) if mtbf is not None else None,
     )

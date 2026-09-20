@@ -2,14 +2,27 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.api.routes.maintenance import complete_maintenance_service, create_work_order, maintenance_plan_status, update_work_order
+from app.api.routes.maintenance import (
+    add_work_order_part,
+    complete_maintenance_service,
+    create_work_order,
+    maintenance_plan_status,
+    return_work_order_part,
+    update_work_order,
+)
 from app.core.database import Base
-from app.models import Equipment, MaintenancePlan
-from app.schemas.maintenance import MaintenanceServiceComplete, WorkOrderCreate, WorkOrderUpdate
+from app.models import Equipment, Inventory, MaintenancePlan, Part, PartTransaction
+from app.schemas.maintenance import (
+    MaintenanceServiceComplete,
+    WorkOrderCreate,
+    WorkOrderPartCreate,
+    WorkOrderPartReturn,
+    WorkOrderUpdate,
+)
 
 
 @pytest.fixture

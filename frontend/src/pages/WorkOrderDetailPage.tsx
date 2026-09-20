@@ -27,6 +27,7 @@ export default function WorkOrderDetailPage() {
   const [partForm, setPartForm] = useState({ part_id: "", quantity: "1" });
   const [laborForm, setLaborForm] = useState({ worker_name: "", hours: "1", hourly_rate: "50", role: "" });
   const [taskDesc, setTaskDesc] = useState("");
+  const [returningPartId, setReturningPartId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -93,6 +94,27 @@ export default function WorkOrderDetailPage() {
       setError(err instanceof ApiError ? err.detail : "Failed to add part");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function returnPart(item: WorkOrderPart) {
+    if (!id) return;
+    const qty = window.prompt(`Return quantity for ${partName(item.part_id)}:`, "1");
+    if (qty === null) return;
+    const quantity = Number(qty);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError("Return quantity must be greater than zero.");
+      return;
+    }
+    setReturningPartId(item.id);
+    setError(null);
+    try {
+      await api.post(`/api/v1/work-orders/${id}/parts/${item.id}/return`, { quantity });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to return part");
+    } finally {
+      setReturningPartId(null);
     }
   }
 
@@ -227,6 +249,15 @@ export default function WorkOrderDetailPage() {
         </div>
       </div>
 
+      <div className="wo-workflow">
+        {["draft", "scheduled", "in_progress", "completed", "verified", "closed"].map((step) => (
+          <div key={step} className={`wo-step ${wo.status === step ? "active" : ""} ${WO_NEXT[step]?.includes(wo.status) ? "available" : ""}`}>
+            <span className="wo-step-dot" />
+            <span>{step.replace(/_/g, " ")}</span>
+          </div>
+        ))}
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
         <div className="panel">
           <div className="panel-header">
@@ -280,6 +311,7 @@ export default function WorkOrderDetailPage() {
                     <td>{partName(p.part_id)}</td>
                     <td>{Number(p.quantity)}</td>
                     <td>{p.unit_cost != null ? Number(p.unit_cost).toLocaleString() : "—"}</td>
+                    <td><button type="button" className="btn btn-ghost btn-sm" disabled={returningPartId === p.id} onClick={() => void returnPart(p)}>{returningPartId === p.id ? "Returning…" : "Return"}</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -367,6 +399,7 @@ export default function WorkOrderDetailPage() {
               </button>
             </div>
           </form>
+          {tasks.length > 0 && <div className="wo-task-progress"><div className="wo-task-bar"><span style={{ width: `${(tasks.filter((t) => t.status === "done").length / tasks.length) * 100}%` }} /></div><span>{tasks.filter((t) => t.status === "done").length}/{tasks.length} tasks complete</span></div>}
           {tasks.length === 0 ? (
             <div className="empty">No tasks.</div>
           ) : (

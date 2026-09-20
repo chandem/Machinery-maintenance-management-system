@@ -106,6 +106,19 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {summary && !loading && <div className="dashboard-insights">
+        <div className="panel"><div className="panel-header"><h2>Fleet health</h2></div><div className="health-list">
+          <div><span>Operational availability</span><strong>{summary.total_equipment ? Math.round(summary.operational_equipment / summary.total_equipment * 100) : 0}%</strong></div>
+          <div><span>Open maintenance work</span><strong>{summary.open_work_orders}</strong></div>
+          <div><span>Assets needing attention</span><strong>{summary.down_equipment + summary.overdue_maintenance_plans}</strong></div>
+        </div></div>
+        <div className="panel"><div className="panel-header"><h2>Parts & operations</h2></div><div className="health-list">
+          <div><span>Inventory value</span><strong>{summary.total_parts_inventory_value == null ? "—" : Number(summary.total_parts_inventory_value).toLocaleString()}</strong></div>
+          <div><span>Out of stock</span><strong>{summary.out_of_stock_parts}</strong></div>
+          <div><span>Open downtime</span><strong>{summary.open_downtime_events ?? 0}</strong></div>
+        </div></div>
+      </div>}
+
       <div className="panel performance-panel">
         <div className="panel-header">
           <div>

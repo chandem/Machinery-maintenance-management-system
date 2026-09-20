@@ -9,6 +9,7 @@ const links = [
   { to: "/inspections", label: "Inspections" },
   { to: "/inventory", label: "Inventory" },
   { to: "/purchases", label: "Purchases" },
+  { to: "/fleet-management", label: "Fleet Management" },
 ];
 
 export default function Layout() {

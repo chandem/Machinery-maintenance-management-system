@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const [performance, setPerformance] = useState<Array<MaintenancePerformance & { equipment: Equipment }>>([]);
   const [analytics, setAnalytics] = useState<MaintenanceAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,6 +34,8 @@ export default function DashboardPage() {
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.detail : "Failed to load dashboard");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -47,7 +50,18 @@ export default function DashboardPage() {
 
       {error && <div className="error-msg">{error}</div>}
 
-      {summary && (
+      {loading && <div className="panel dashboard-loading"><div className="empty">Loading fleet health data…</div></div>}
+
+      {!loading && !error && (
+        <div className="quick-actions">
+          <a className="quick-action" href="/equipment"><strong>Equipment</strong><span>View and manage fleet assets →</span></a>
+          <a className="quick-action" href="/work-orders"><strong>Work orders</strong><span>Track active maintenance work →</span></a>
+          <a className="quick-action" href="/maintenance"><strong>Maintenance</strong><span>Review due and scheduled service →</span></a>
+          <a className="quick-action" href="/inventory"><strong>Inventory</strong><span>Monitor parts and stock levels →</span></a>
+        </div>
+      )}
+
+      {summary && !loading && (
         <div className="stats">
           <div className="stat-card">
             <div className="label">Equipment</div>
@@ -84,7 +98,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {analytics && analytics.preventive_work_orders > 0 && (
+      {analytics && !loading && analytics.preventive_work_orders > 0 && (
         <div className="stats analytics-stats">
           <div className="stat-card ok"><div className="label">PM completion</div><div className="value">{Number(analytics.preventive_completion_rate).toFixed(0)}%</div></div>
           <div className={analytics.overdue_preventive_work_orders ? "stat-card danger" : "stat-card"}><div className="label">Overdue PM WOs</div><div className="value">{analytics.overdue_preventive_work_orders}</div></div>

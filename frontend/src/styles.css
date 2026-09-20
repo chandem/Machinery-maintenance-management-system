@@ -573,3 +573,8 @@ a:focus-visible {
 
 .maintenance-stats { margin-bottom: 1.5rem; }
 @media (max-width: 700px) { .maintenance-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+
+.equipment-stats { margin-bottom: 1.5rem; }
+.equipment-table { min-width: 980px; }
+@media (max-width: 700px) { .equipment-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

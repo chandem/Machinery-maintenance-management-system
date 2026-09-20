@@ -17,6 +17,8 @@ jobs:
       SECRET_KEY: ci-test-secret
       REQUIRE_AUTH_WRITES: "false"
       PUBLIC_APP_URL: http://localhost:5173
+      PYTHONPATH: .
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4

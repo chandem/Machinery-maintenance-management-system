@@ -89,3 +89,24 @@ class MaintenancePerformanceRead(BaseModel):
     observation_hours: Decimal
     operating_hours: Decimal
     mtbf_hours: Optional[Decimal]
+
+
+class FuelEquipmentSummaryRead(BaseModel):
+    equipment_id: int
+    asset_code: str
+    equipment_name: str
+    quantity: Decimal
+    fuel_cost: Decimal
+    average_unit_cost: Optional[Decimal]
+    hours_used: Optional[Decimal]
+    km_used: Optional[Decimal]
+    liters_per_hour: Optional[Decimal]
+    liters_per_km: Optional[Decimal]
+
+
+class FuelSummaryRead(BaseModel):
+    total_records: int
+    total_quantity: Decimal
+    total_fuel_cost: Decimal
+    average_unit_cost: Optional[Decimal]
+    by_equipment: list[FuelEquipmentSummaryRead]

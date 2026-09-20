@@ -4,6 +4,7 @@ from .inventory import Supplier, Part, Inventory, PartTransaction
 from .user import User
 from .operations import Inspection, FuelRecord, DowntimeEvent
 from .purchase import PurchaseRequest
+from .documents import EquipmentDocument
 
 __all__ = [
     "Equipment", "EquipmentCategory", "Location", "Operator", "MeterReading",
@@ -12,4 +13,5 @@ __all__ = [
     "User",
     "Inspection", "FuelRecord", "DowntimeEvent",
     "PurchaseRequest",
+    "EquipmentDocument",
 ]

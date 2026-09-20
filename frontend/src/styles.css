@@ -539,3 +539,33 @@ a:focus-visible {
     flex-wrap: wrap;
   }
 }
+
+
+.wo-workflow {
+  display: flex;
+  gap: 0.35rem;
+  margin: 1.25rem 0;
+  padding: 0.85rem;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.wo-step {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: max-content;
+  padding: 0.45rem 0.65rem;
+  color: var(--muted);
+  text-transform: capitalize;
+  font-size: 0.78rem;
+}
+.wo-step.active { color: var(--text); font-weight: 700; }
+.wo-step.available { color: var(--accent); }
+.wo-step-dot { width: 8px; height: 8px; border: 2px solid currentColor; border-radius: 50%; }
+.wo-step.active .wo-step-dot { background: currentColor; }
+.wo-task-progress { display: flex; align-items: center; gap: 0.65rem; padding: 0.75rem 1.15rem; color: var(--muted); font-size: 0.8rem; border-bottom: 1px solid var(--border); }
+.wo-task-bar { flex: 1; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.wo-task-bar span { display: block; height: 100%; background: var(--success); border-radius: inherit; }
+@media (max-width: 600px) { .wo-workflow { margin-left: -0.25rem; margin-right: -0.25rem; } }

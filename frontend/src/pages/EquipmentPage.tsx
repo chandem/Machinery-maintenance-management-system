@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
 import type { Equipment } from "../api/types";
@@ -8,6 +8,10 @@ export default function EquipmentPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [locationId, setLocationId] = useState("");
+  const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
+  const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", status: "operational" });
@@ -21,6 +25,8 @@ export default function EquipmentPage() {
       const params = new URLSearchParams({ page: String(page), page_size: "15" });
       if (search.trim()) params.set("search", search.trim());
       if (status) params.set("status", status);
+      if (categoryId) params.set("category_id", categoryId);
+      if (locationId) params.set("location_id", locationId);
       const res = await api.get<Page<Equipment>>(`/api/v1/equipment?${params}`);
       setData(res);
     } catch (err) {
@@ -28,7 +34,21 @@ export default function EquipmentPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, status]);
+  }, [page, search, status, categoryId, locationId]);
+
+  useEffect(() => {
+    void Promise.all([
+      api.get<{ id: number; name: string }[]>("/api/v1/equipment/categories"),
+      api.get<{ id: number; name: string }[]>("/api/v1/equipment/locations"),
+    ]).then(([cats, locs]) => { setCategories(cats); setLocations(locs); }).catch((err) => {
+      setError(err instanceof ApiError ? err.detail : "Failed to load equipment filters");
+    });
+  }, []);
+
+  const counts = useMemo(() => {
+    const items = data?.items ?? [];
+    return { operational: items.filter(e => e.status === "operational").length, maintenance: items.filter(e => e.status === "maintenance").length, unavailable: items.filter(e => e.status === "down" || e.status === "out_of_service").length };
+  }, [data]);
 
   useEffect(() => {
     void load();
@@ -59,7 +79,14 @@ export default function EquipmentPage() {
   return (
     <div>
       <h1 className="page-title">Equipment</h1>
-      <p className="page-sub">Asset registry and status</p>
+      <p className="page-sub">Asset registry, classification, location and operating status</p>
+
+      <div className="stats equipment-stats">
+        <div className="stat-card"><div className="label">Assets</div><div className="value">{data?.total ?? "—"}</div></div>
+        <div className="stat-card ok"><div className="label">Operational</div><div className="value">{counts.operational}</div></div>
+        <div className="stat-card warn"><div className="label">Maintenance</div><div className="value">{counts.maintenance}</div></div>
+        <div className="stat-card danger"><div className="label">Down / OOS</div><div className="value">{counts.unavailable}</div></div>
+      </div>
 
       {error && <div className="error-msg">{error}</div>}
 
@@ -90,6 +117,9 @@ export default function EquipmentPage() {
               <option value="down">Down</option>
               <option value="out_of_service">Out of service</option>
             </select>
+            <select className="input" value={categoryId} onChange={(e) => { setPage(1); setCategoryId(e.target.value); }}><option value="">All categories</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+            <select className="input" value={locationId} onChange={(e) => { setPage(1); setLocationId(e.target.value); }}><option value="">All locations</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
+            {(categoryId || locationId) && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setCategoryId(""); setLocationId(""); setPage(1); }}>Clear filters</button>}
             <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
               {showForm ? "Cancel" : "Add equipment"}
             </button>

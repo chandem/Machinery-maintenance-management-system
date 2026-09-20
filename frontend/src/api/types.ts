@@ -20,6 +20,16 @@ export type DashboardSummary = {
   open_downtime_events?: number;
 };
 
+export type MaintenanceAnalytics = {
+  equipment_id: number | null;
+  preventive_work_orders: number;
+  completed_preventive_work_orders: number;
+  overdue_preventive_work_orders: number;
+  preventive_completion_rate: number;
+  preventive_estimated_cost: number;
+  preventive_actual_cost: number;
+};
+
 export type MaintenancePerformance = {
   equipment_id: number;
   breakdown_events: number;

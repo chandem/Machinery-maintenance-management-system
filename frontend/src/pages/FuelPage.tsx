@@ -27,6 +27,8 @@ export default function FuelPage() {
     try {
       const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
       if (equipmentId) params.set("equipment_id", equipmentId);
+      if (startDate) params.set("start_date", startDate);
+      if (endDate) params.set("end_date", endDate);
       const [eqPage, fuelPage, fuelSummary] = await Promise.all([
         api.get<Page<Equipment>>("/api/v1/equipment?page_size=100"),
         api.get<Page<FuelRecord>>(`/api/v1/fuel?${params.toString()}`),

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
-import type { DowntimeEvent, Equipment, FuelRecord, MeterReading, WorkOrder } from "../api/types";
+import type { DowntimeEvent, Equipment, FuelRecord, MaintenancePlan, MeterReading, WorkOrder } from "../api/types";
 
 type QrInfo = { payload: string; qr_image_url: string; asset_code: string };
 
@@ -12,6 +12,7 @@ export default function EquipmentDetailPage() {
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [fuel, setFuel] = useState<FuelRecord[]>([]);
   const [downtime, setDowntime] = useState<DowntimeEvent[]>([]);
+  const [plans, setPlans] = useState<MaintenancePlan[]>([]);
   const [qr, setQr] = useState<QrInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [meterType, setMeterType] = useState("hour_meter");
@@ -27,12 +28,13 @@ export default function EquipmentDetailPage() {
     if (!id) return;
     setError(null);
     try {
-      const [equipment, meterPage, woPage, fuelPage, dtPage, qrInfo] = await Promise.all([
+      const [equipment, meterPage, woPage, fuelPage, dtPage, planPage, qrInfo] = await Promise.all([
         api.get<Equipment>(`/api/v1/equipment/${id}`),
         api.get<Page<MeterReading>>(`/api/v1/equipment/meter-readings?equipment_id=${id}&page_size=8`),
         api.get<Page<WorkOrder>>(`/api/v1/work-orders?equipment_id=${id}&page_size=8`),
         api.get<Page<FuelRecord>>(`/api/v1/fuel?equipment_id=${id}&page_size=8`),
         api.get<Page<DowntimeEvent>>(`/api/v1/downtime?equipment_id=${id}&page_size=8`),
+        api.get<Page<MaintenancePlan>>(`/api/v1/maintenance-plans?equipment_id=${id}&active_only=true&page_size=20`),
         api.get<QrInfo>(`/api/v1/equipment/${id}/qr`).catch(() => null),
       ]);
       setEq(equipment);
@@ -40,6 +42,7 @@ export default function EquipmentDetailPage() {
       setOrders(woPage.items);
       setFuel(fuelPage.items);
       setDowntime(dtPage.items);
+      setPlans(planPage.items);
       setQr(qrInfo);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load equipment");
@@ -338,6 +341,28 @@ export default function EquipmentDetailPage() {
           )}
         </div>
 
+        <div className="panel">
+          <div className="panel-header">
+            <h2>Maintenance plans</h2>
+            <Link to="/maintenance" className="btn btn-ghost btn-sm">Schedule</Link>
+          </div>
+          {plans.length === 0 ? (
+            <div className="empty">No active maintenance plans.</div>
+          ) : (
+            <table>
+              <thead><tr><th>Plan</th><th>Next due</th><th>Meter</th></tr></thead>
+              <tbody>
+                {plans.map((plan) => (
+                  <tr key={plan.id}>
+                    <td><strong>{plan.name}</strong><div className="muted">{plan.maintenance_type}</div></td>
+                    <td>{plan.next_due_date ?? "—"}</td>
+                    <td>{plan.next_due_meter != null ? Number(plan.next_due_meter).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
         <div className="panel">
           <div className="panel-header">
             <h2>Work orders</h2>

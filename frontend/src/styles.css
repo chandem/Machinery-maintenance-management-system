@@ -605,3 +605,25 @@ a:focus-visible {
 .health-list span { color: var(--muted); }
 .health-list strong { font-size: 1rem; }
 @media (max-width: 700px) { .dashboard-insights { grid-template-columns: 1fr; } }
+
+
+.fuel-stats { margin-bottom: 1rem; }
+.fuel-form {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  padding: 1rem 1.15rem;
+}
+.fuel-form .form-group { margin: 0; }
+.fuel-form > .btn { margin-bottom: 1rem; }
+.fuel-filters .input { width: auto; min-width: 170px; }
+.fuel-table { min-width: 850px; }
+@media (max-width: 1100px) {
+  .fuel-form { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+}
+@media (max-width: 650px) {
+  .fuel-form { grid-template-columns: 1fr; }
+  .fuel-form > .btn { margin-bottom: 0; }
+  .fuel-filters .input { width: 100%; min-width: 0; }
+}

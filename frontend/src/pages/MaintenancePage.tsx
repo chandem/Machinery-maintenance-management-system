@@ -9,6 +9,7 @@ export default function MaintenancePage() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState<number | null>(null);
   const [form, setForm] = useState({
     equipment_id: "",
     name: "",
@@ -41,6 +42,30 @@ export default function MaintenancePage() {
       .then((p) => setEquipment(p.items))
       .catch(() => setEquipment([]));
   }, [showForm]);
+
+  async function generateWorkOrder(row: MaintenanceScheduleStatus) {
+    setActionId(row.id);
+    setError(null);
+    try {
+      const number = `PM-${row.asset_code}-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${row.id}`;
+      await api.post("/api/v1/work-orders", {
+        work_order_number: number,
+        equipment_id: row.equipment_id,
+        maintenance_plan_id: row.id,
+        title: row.name,
+        description: `Preventive maintenance generated from plan: ${row.name}`,
+        maintenance_type: "preventive",
+        priority: row.status === "overdue" ? "high" : "medium",
+        status: "draft",
+        scheduled_date: row.next_due_date,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Failed to generate work order");
+    } finally {
+      setActionId(null);
+    }
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -143,6 +168,7 @@ export default function MaintenancePage() {
                 <th>Next due date</th>
                 <th>Current / due meter</th>
                 <th>Status</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -163,6 +189,7 @@ export default function MaintenancePage() {
                   <td>
                     <span className={`badge badge-${row.status}`}>{row.status}</span>
                   </td>
+                  <td><button type="button" className="btn btn-primary btn-sm" disabled={actionId === row.id} onClick={() => void generateWorkOrder(row)}>{actionId === row.id ? "Creating…" : "Create work order"}</button></td>
                 </tr>
               ))}
             </tbody>

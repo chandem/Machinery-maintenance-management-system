@@ -18,9 +18,11 @@ export default function WorkOrdersPage() {
     priority: "medium",
   });
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
+    setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), page_size: "15" });
       if (status) params.set("status_filter", status);
@@ -28,6 +30,8 @@ export default function WorkOrdersPage() {
       setData(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load work orders");
+    } finally {
+      setLoading(false);
     }
   }, [page, status]);
 
@@ -75,7 +79,7 @@ export default function WorkOrdersPage() {
 
       <div className="panel">
         <div className="panel-header">
-          <h2>All work orders</h2>
+          <div><h2>All work orders</h2><div className="muted">{data ? `${data.total} maintenance jobs` : "Loading maintenance jobs…"}</div></div>
           <div className="toolbar">
             <select
               className="input"
@@ -162,10 +166,13 @@ export default function WorkOrdersPage() {
           </form>
         )}
 
-        {!data || data.items.length === 0 ? (
+        {loading ? (
+          <div className="empty">Loading work orders…</div>
+        ) : !data || data.items.length === 0 ? (
           <div className="empty">No work orders yet.</div>
         ) : (
           <>
+            <div className="table-scroll">
             <table>
               <thead>
                 <tr>
@@ -198,6 +205,7 @@ export default function WorkOrdersPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="pagination">
               <span>
                 Page {data.page} of {data.pages || 1} · {data.total} total

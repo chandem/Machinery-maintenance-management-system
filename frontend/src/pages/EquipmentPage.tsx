@@ -14,7 +14,7 @@ export default function EquipmentPage() {
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", category_id: "", location_id: "", operator_id: "", notes: "", status: "operational" });
+  const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", status: "operational" });
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -40,8 +40,10 @@ export default function EquipmentPage() {
     void Promise.all([
       api.get<{ id: number; name: string }[]>("/api/v1/equipment/categories"),
       api.get<{ id: number; name: string }[]>("/api/v1/equipment/locations"),
-      api.get<{ id: number; employee_code: string; full_name: string; active: boolean }[]>("/api/v1/equipment/operators?active_only=true"),
-    ]).then(([cats, locs, ops]) => { setCategories(cats); setLocations(locs); }).catch((err) => {
+    ]).then(([cats, locs]) => {
+      setCategories(cats);
+      setLocations(locs);
+    }).catch((err) => {
       setError(err instanceof ApiError ? err.detail : "Failed to load equipment filters");
     });
   }, []);
@@ -67,7 +69,7 @@ export default function EquipmentPage() {
         status: form.status,
       });
       setShowForm(false);
-      setForm({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", category_id: "", location_id: "", operator_id: "", notes: "", status: "operational" });
+      setForm({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", status: "operational" });
       setPage(1);
       await load();
     } catch (err) {

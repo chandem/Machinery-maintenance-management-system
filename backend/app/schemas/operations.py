@@ -46,6 +46,15 @@ class FuelOperatingCostEquipmentRead(BaseModel):
     cost_per_hour: Optional[Decimal]
 
 
+class FuelOperatingCostTrendRead(BaseModel):
+    period: str
+    fuel_cost: Decimal
+    maintenance_cost: Decimal
+    parts_cost: Decimal
+    labor_cost: Decimal
+    total_operating_cost: Decimal
+
+
 class FuelOperatingCostSummaryRead(BaseModel):
     total_fuel_cost: Decimal
     total_maintenance_cost: Decimal

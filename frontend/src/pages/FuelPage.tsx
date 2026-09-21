@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
-import type { Equipment, FuelRecord, FuelSummary, FuelOperatingCostSummary } from "../api/types";
+import type { Equipment, FuelRecord, FuelSummary, FuelOperatingCostSummary, FuelOperatingCostTrend } from "../api/types";
 
 function money(value: number | null) {
   return value == null ? "—" : Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -12,6 +12,7 @@ export default function FuelPage() {
   const [records, setRecords] = useState<FuelRecord[]>([]);
   const [summary, setSummary] = useState<FuelSummary | null>(null);
   const [operatingCosts, setOperatingCosts] = useState<FuelOperatingCostSummary | null>(null);
+  const [costTrends, setCostTrends] = useState<FuelOperatingCostTrend[]>([]);
   const [equipmentId, setEquipmentId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -30,7 +31,7 @@ export default function FuelPage() {
       if (equipmentId) params.set("equipment_id", equipmentId);
       if (startDate) params.set("start_date", startDate);
       if (endDate) params.set("end_date", endDate);
-      const [eqPage, fuelPage, fuelSummary, costSummary] = await Promise.all([
+      const [eqPage, fuelPage, fuelSummary, costSummary, trendData] = await Promise.all([
         api.get<Page<Equipment>>("/api/v1/equipment?page_size=100"),
         api.get<Page<FuelRecord>>(`/api/v1/fuel?${params.toString()}`),
         api.get<FuelSummary>(`/api/v1/fuel/summary?${new URLSearchParams({
@@ -43,11 +44,17 @@ export default function FuelPage() {
           ...(startDate ? { start_date: startDate } : {}),
           ...(endDate ? { end_date: endDate } : {}),
         }).toString()}`),
+        api.get<FuelOperatingCostTrend[]>(`/api/v1/fuel/operating-cost-trends?${new URLSearchParams({
+          ...(equipmentId ? { equipment_id: equipmentId } : {}),
+          ...(startDate ? { start_date: startDate } : {}),
+          ...(endDate ? { end_date: endDate } : {}),
+        }).toString()}`),
       ]);
       setEquipment(eqPage.items);
       setRecords(fuelPage.items);
       setSummary(fuelSummary);
       setOperatingCosts(costSummary);
+      setCostTrends(trendData);
       if (!form.equipment_id && eqPage.items.length) setForm((f) => ({ ...f, equipment_id: String(eqPage.items[0].id) }));
     } catch (err) {
       setError(err instanceof ApiError ? err.detail : "Failed to load fuel data");
@@ -135,7 +142,36 @@ export default function FuelPage() {
         </table></div>
       </div>
 
+      </div>
+
       <div className="panel" style={{ marginBottom: "1rem" }}>
+        <div className="panel-header"><h2>Operating cost trend</h2><span className="muted">Monthly cost breakdown for the selected period</span></div>
+        {!costTrends.length ? <div className="empty">No cost trend data for the selected period.</div> : (
+          <div className="cost-trend">
+            {costTrends.map((row) => {
+              const max = Math.max(...costTrends.map((x) => x.total_operating_cost), 1);
+              const totalWidth = Math.max((row.total_operating_cost / max) * 100, row.total_operating_cost > 0 ? 2 : 0);
+              return (
+                <div className="cost-trend-row" key={row.period}>
+                  <div className="cost-trend-label">{row.period}</div>
+                  <div className="cost-trend-track">
+                    <div className="cost-trend-bar" style={{ width: `${totalWidth}%` }}>
+                      <span className="cost-trend-segment fuel" style={{ width: `${row.total_operating_cost ? (row.fuel_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                      <span className="cost-trend-segment maintenance" style={{ width: `${row.total_operating_cost ? (row.maintenance_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                      <span className="cost-trend-segment parts" style={{ width: `${row.total_operating_cost ? (row.parts_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                      <span className="cost-trend-segment labor" style={{ width: `${row.total_operating_cost ? (row.labor_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+                  <strong>{money(row.total_operating_cost)}</strong>
+                </div>
+              );
+            })}
+            <div className="cost-trend-legend">
+              <span><i className="fuel" />Fuel</span><span><i className="maintenance" />Maintenance</span><span><i className="parts" />Parts</span><span><i className="labor" />Labor</span>
+            </div>
+          </div>
+        )}
+      </div>\n\n      <div className="panel" style={{ marginBottom: "1rem" }}>
         <div className="panel-header"><h2>Record fuel issue</h2><span className="muted">Meter readings improve consumption accuracy</span></div>
         <form onSubmit={onSubmit} className="fuel-form">
           <div className="form-group"><label>Equipment</label><select className="input" required value={form.equipment_id} onChange={(e) => setForm({ ...form, equipment_id: e.target.value })}><option value="">Select equipment</option>{equipment.map((eq) => <option key={eq.id} value={eq.id}>{eq.asset_code} — {eq.name}</option>)}</select></div>

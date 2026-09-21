@@ -27,6 +27,7 @@ from app.schemas.operations import (
     FuelEquipmentSummaryRead,
     FuelOperatingCostSummaryRead,
     FuelOperatingCostEquipmentRead,
+    FuelOperatingCostTrendRead,
 )
 
 router = APIRouter(tags=["Operations"])
@@ -257,6 +258,89 @@ def fuel_operating_costs(
         total_operating_cost=sum((x.total_operating_cost for x in rows), Decimal("0")),
         by_equipment=rows,
     )
+
+
+@router.get("/fuel/operating-cost-trends", response_model=list[FuelOperatingCostTrendRead])
+def fuel_operating_cost_trends(
+    equipment_id: int | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    db: Session = Depends(get_db),
+):
+    start = start_date or (date.today().replace(day=1) - timedelta(days=180))
+    end = end_date or date.today()
+    if start > end:
+        raise HTTPException(400, "start_date cannot be after end_date")
+
+    def month_start(value: date) -> date:
+        return value.replace(day=1)
+
+    def next_month(value: date) -> date:
+        return date(value.year + (1 if value.month == 12 else 0), 1 if value.month == 12 else value.month + 1, 1)
+
+    fuel_query = select(FuelRecord).where(
+        FuelRecord.recorded_at >= datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc),
+        FuelRecord.recorded_at < datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc),
+    )
+    wo_query = select(WorkOrder).where(
+        WorkOrder.status != "cancelled",
+        WorkOrder.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc),
+        WorkOrder.created_at < datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc),
+    )
+    if equipment_id is not None:
+        fuel_query = fuel_query.where(FuelRecord.equipment_id == equipment_id)
+        wo_query = wo_query.where(WorkOrder.equipment_id == equipment_id)
+
+    fuels = list(db.scalars(fuel_query).all())
+    orders = list(db.scalars(wo_query).all())
+
+    months: dict[str, dict[str, Decimal]] = {}
+    cursor = month_start(start)
+    while cursor <= end:
+        key = cursor.strftime("%Y-%m")
+        months[key] = {
+            "fuel": Decimal("0"), "maintenance": Decimal("0"),
+            "parts": Decimal("0"), "labor": Decimal("0"),
+        }
+        cursor = next_month(cursor)
+
+    for row in fuels:
+        key = row.recorded_at.date().strftime("%Y-%m")
+        if key not in months:
+            continue
+        months[key]["fuel"] += Decimal(row.quantity or 0) * Decimal(row.unit_cost or 0)
+
+    for order in orders:
+        key = order.created_at.date().strftime("%Y-%m")
+        if key not in months:
+            continue
+        parts = db.scalars(select(WorkOrderPart).where(WorkOrderPart.work_order_id == order.id)).all()
+        parts_cost = sum(
+            (Decimal(p.quantity) * Decimal(p.unit_cost or 0) for p in parts),
+            Decimal("0"),
+        )
+        labor_cost = db.scalar(
+            select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0))
+            .where(WorkOrderLabor.work_order_id == order.id)
+        ) or Decimal("0")
+        months[key]["parts"] += parts_cost
+        months[key]["labor"] += Decimal(labor_cost)
+        recorded_cost = Decimal(order.actual_cost or 0)
+        months[key]["maintenance"] += max(
+            recorded_cost - parts_cost - Decimal(labor_cost), Decimal("0")
+        )
+
+    return [
+        FuelOperatingCostTrendRead(
+            period=key,
+            fuel_cost=values["fuel"].quantize(Decimal("0.01")),
+            maintenance_cost=values["maintenance"].quantize(Decimal("0.01")),
+            parts_cost=values["parts"].quantize(Decimal("0.01")),
+            labor_cost=values["labor"].quantize(Decimal("0.01")),
+            total_operating_cost=sum(values.values(), Decimal("0")).quantize(Decimal("0.01")),
+        )
+        for key, values in months.items()
+    ]
 
 
 @router.get("/fuel/summary", response_model=FuelSummaryRead)

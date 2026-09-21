@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_write_user
 from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
-from app.models.equipment import Equipment
+from app.models.equipment import Equipment, MeterReading
 from app.models.operations import DowntimeEvent, FuelRecord, Inspection
 from app.models.maintenance import WorkOrder, WorkOrderLabor, WorkOrderPart
 from app.models.user import User
@@ -149,6 +149,16 @@ def fuel_operating_costs(
     wo_query = select(WorkOrder).where(WorkOrder.status != "cancelled")
     if equipment_id is not None:
         wo_query = wo_query.where(WorkOrder.equipment_id == equipment_id)
+    if start_date is not None:
+        wo_query = wo_query.where(
+            WorkOrder.created_at
+            >= datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+        )
+    if end_date is not None:
+        wo_query = wo_query.where(
+            WorkOrder.created_at
+            < datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+        )
     orders = list(db.scalars(wo_query).all())
 
     equipment_ids = {x.equipment_id for x in fuels} | {x.equipment_id for x in orders}
@@ -180,7 +190,47 @@ def fuel_operating_costs(
         labor = labor_by.get(eid, Decimal("0"))
         maintenance = maintenance_by.get(eid, Decimal("0"))
         total = fuel + maintenance + parts + labor
-        hours = Decimal(eq.hour_meter) if eq.hour_meter is not None else None
+        # Use meter readings within the selected period, with the latest reading
+        # before the period as a baseline when available. This avoids treating the
+        # lifetime equipment hour meter as "hours used" for the selected period.
+        meter_query = (
+            select(MeterReading)
+            .where(
+                MeterReading.equipment_id == eid,
+                MeterReading.reading_type == "hour_meter",
+            )
+            .order_by(MeterReading.recorded_at)
+        )
+        if start_date is not None:
+            period_start = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+            baseline_query = (
+                select(MeterReading)
+                .where(
+                    MeterReading.equipment_id == eid,
+                    MeterReading.reading_type == "hour_meter",
+                    MeterReading.recorded_at < period_start,
+                )
+                .order_by(MeterReading.recorded_at.desc())
+                .limit(1)
+            )
+            baseline = db.scalar(baseline_query)
+            meter_query = meter_query.where(MeterReading.recorded_at >= period_start)
+        else:
+            baseline = None
+        if end_date is not None:
+            period_end = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+            meter_query = meter_query.where(MeterReading.recorded_at < period_end)
+
+        meter_rows = list(db.scalars(meter_query).all())
+        hours = None
+        if meter_rows:
+            first_value = Decimal(meter_rows[0].reading_value)
+            last_value = Decimal(meter_rows[-1].reading_value)
+            if baseline is not None:
+                first_value = Decimal(baseline.reading_value)
+            if last_value >= first_value:
+                hours = last_value - first_value
+
         rows.append(FuelOperatingCostEquipmentRead(
             equipment_id=eid, asset_code=eq.asset_code, equipment_name=eq.name,
             fuel_cost=fuel.quantize(Decimal("0.01")),
@@ -188,8 +238,8 @@ def fuel_operating_costs(
             parts_cost=parts.quantize(Decimal("0.01")),
             labor_cost=labor.quantize(Decimal("0.01")),
             total_operating_cost=total.quantize(Decimal("0.01")),
-            hours_used=hours.quantize(Decimal("0.01")) if hours and hours > 0 else None,
-            cost_per_hour=(total / hours).quantize(Decimal("0.01")) if hours and hours > 0 else None,
+            hours_used=hours.quantize(Decimal("0.01")) if hours is not None and hours > 0 else None,
+            cost_per_hour=(total / hours).quantize(Decimal("0.01")) if hours is not None and hours > 0 else None,
         ))
     rows.sort(key=lambda x: x.total_operating_cost, reverse=True)
     return FuelOperatingCostSummaryRead(

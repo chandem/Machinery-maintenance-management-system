@@ -124,7 +124,7 @@ export default function DashboardPage() {
           </div>
           <div className="stat-card warn">
             <div className="label">Average MTTR</div>
-            <div className="value">{performance.length ? (performance.reduce((sum, row) => sum + Number(row.mttr_hours || 0), 0) / performance.filter((row) => row.mttr_hours != null).length || 0).toFixed(1) : "—"} h</div>
+            <div className="value">{performance.filter((row) => row.mttr_hours != null).length ? (performance.reduce((sum, row) => sum + Number(row.mttr_hours || 0), 0) / performance.filter((row) => row.mttr_hours != null).length).toFixed(1) : "—"} h</div>
           </div>
           <div className="stat-card ok">
             <div className="label">Average MTBF</div>
@@ -136,6 +136,37 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {summary && !loading && (() => {
+        const today = new Date();
+        const in30Days = new Date(today);
+        in30Days.setDate(today.getDate() + 30);
+        const alerts = [
+          ...schedule.filter((x) => x.status === "overdue").map((x) => ({ level: "danger", title: "Overdue maintenance", text: `${x.asset_code} — ${x.name}` })),
+          ...downtime.filter((x) => x.open_events > 0).map((x) => ({ level: "danger", title: "Equipment still down", text: `${x.equipment.asset_code} — ${x.open_events} open event(s)` })),
+          ...performance.filter((x) => x.breakdown_events >= 2).map((x) => ({ level: "warn", title: "Repeated breakdowns", text: `${x.equipment.asset_code} — ${x.breakdown_events} breakdowns recorded` })),
+          ...eq.items.filter((x) => x.warranty_expiry && new Date(x.warranty_expiry) >= today && new Date(x.warranty_expiry) <= in30Days).map((x) => ({ level: "warn", title: "Warranty expiring soon", text: `${x.asset_code} — expires ${x.warranty_expiry}` })),
+          ...(summary.out_of_stock_parts > 0 ? [{ level: "warn", title: "Parts out of stock", text: `${summary.out_of_stock_parts} part(s) currently have zero stock` }] : []),
+        ].slice(0, 10);
+        return (
+          <div className="panel">
+            <div className="panel-header">
+              <div><h2>Maintenance alerts</h2><div className="muted">Items requiring review based on current fleet data</div></div>
+              <strong>{alerts.length}</strong>
+            </div>
+            {alerts.length === 0 ? <div className="empty">No active alerts.</div> : (
+              <div className="health-list">
+                {alerts.map((alert, index) => (
+                  <div key={`${alert.title}-${index}`}>
+                    <span><strong>{alert.title}</strong><br /><small>{alert.text}</small></span>
+                    <span className={alert.level === "danger" ? "badge badge-overdue" : "badge badge-due"}>{alert.level === "danger" ? "Action" : "Review"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {summary && !loading && <div className="dashboard-insights">
         <div className="panel"><div className="panel-header"><h2>Fleet health</h2></div><div className="health-list">

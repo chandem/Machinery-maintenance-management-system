@@ -12,7 +12,6 @@ export default function EquipmentPage() {
   const [locationId, setLocationId] = useState("");
   const [categories, setCategories] = useState<{ id: number; name: string }[]>([]);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
-  const [operators, setOperators] = useState<{ id: number; employee_code: string; full_name: string; active: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ asset_code: "", name: "", manufacturer: "", model: "", serial_number: "", plate_number: "", purchase_date: "", purchase_cost: "", warranty_expiry: "", hour_meter: "", odometer: "", category_id: "", location_id: "", operator_id: "", notes: "", status: "operational" });
@@ -42,7 +41,7 @@ export default function EquipmentPage() {
       api.get<{ id: number; name: string }[]>("/api/v1/equipment/categories"),
       api.get<{ id: number; name: string }[]>("/api/v1/equipment/locations"),
       api.get<{ id: number; employee_code: string; full_name: string; active: boolean }[]>("/api/v1/equipment/operators?active_only=true"),
-    ]).then(([cats, locs, ops]) => { setCategories(cats); setLocations(locs); setOperators(ops); }).catch((err) => {
+    ]).then(([cats, locs, ops]) => { setCategories(cats); setLocations(locs); }).catch((err) => {
       setError(err instanceof ApiError ? err.detail : "Failed to load equipment filters");
     });
   }, []);

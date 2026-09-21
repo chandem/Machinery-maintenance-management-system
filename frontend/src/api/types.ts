@@ -49,6 +49,8 @@ export type Equipment = {
   serial_number: string | null;
   plate_number: string | null;
   status: string;
+  purchase_date: string | null;
+  purchase_cost: number | null;
   hour_meter: number | null;
   odometer: number | null;
   warranty_expiry: string | null;

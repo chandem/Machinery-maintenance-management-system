@@ -142,32 +142,30 @@ export default function FuelPage() {
         </table></div>
       </div>
 
-      </div>
-
       <div className="panel" style={{ marginBottom: "1rem" }}>
         <div className="panel-header"><h2>Operating cost trend</h2><span className="muted">Monthly cost breakdown for the selected period</span></div>
         {!costTrends.length ? <div className="empty">No cost trend data for the selected period.</div> : (
-          <div className="cost-trend">
+          <div style={{ padding: "1rem 1.15rem", display: "grid", gap: "0.75rem" }}>
             {costTrends.map((row) => {
               const max = Math.max(...costTrends.map((x) => x.total_operating_cost), 1);
               const totalWidth = Math.max((row.total_operating_cost / max) * 100, row.total_operating_cost > 0 ? 2 : 0);
               return (
-                <div className="cost-trend-row" key={row.period}>
-                  <div className="cost-trend-label">{row.period}</div>
-                  <div className="cost-trend-track">
-                    <div className="cost-trend-bar" style={{ width: `${totalWidth}%` }}>
-                      <span className="cost-trend-segment fuel" style={{ width: `${row.total_operating_cost ? (row.fuel_cost / row.total_operating_cost) * 100 : 0}%` }} />
-                      <span className="cost-trend-segment maintenance" style={{ width: `${row.total_operating_cost ? (row.maintenance_cost / row.total_operating_cost) * 100 : 0}%` }} />
-                      <span className="cost-trend-segment parts" style={{ width: `${row.total_operating_cost ? (row.parts_cost / row.total_operating_cost) * 100 : 0}%` }} />
-                      <span className="cost-trend-segment labor" style={{ width: `${row.total_operating_cost ? (row.labor_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                <div key={row.period} style={{ display: "grid", gridTemplateColumns: "70px 1fr auto", alignItems: "center", gap: "0.75rem" }}>
+                  <div className="muted">{row.period}</div>
+                  <div style={{ height: "18px", background: "var(--surface-2)", borderRadius: "999px", overflow: "hidden" }}>
+                    <div style={{ width: `${totalWidth}%`, height: "100%", display: "flex", borderRadius: "999px", overflow: "hidden" }}>
+                      <span style={{ background: "var(--accent)", display: "block", height: "100%", width: `${row.total_operating_cost ? (row.fuel_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                      <span style={{ background: "var(--warning)", display: "block", height: "100%", width: `${row.total_operating_cost ? (row.maintenance_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                      <span style={{ background: "var(--success)", display: "block", height: "100%", width: `${row.total_operating_cost ? (row.parts_cost / row.total_operating_cost) * 100 : 0}%` }} />
+                      <span style={{ background: "var(--danger)", display: "block", height: "100%", width: `${row.total_operating_cost ? (row.labor_cost / row.total_operating_cost) * 100 : 0}%` }} />
                     </div>
                   </div>
                   <strong>{money(row.total_operating_cost)}</strong>
                 </div>
               );
             })}
-            <div className="cost-trend-legend">
-              <span><i className="fuel" />Fuel</span><span><i className="maintenance" />Maintenance</span><span><i className="parts" />Parts</span><span><i className="labor" />Labor</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", color: "var(--muted)", fontSize: "0.8rem", paddingTop: "0.35rem" }}>
+              <span>■ Fuel</span><span>■ Maintenance</span><span>■ Parts</span><span>■ Labor</span>
             </div>
           </div>
         )}

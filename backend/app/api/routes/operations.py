@@ -180,7 +180,14 @@ def fuel_operating_costs(
         ) or Decimal("0")
         parts_by[order.equipment_id] = parts_by.get(order.equipment_id, Decimal("0")) + parts_cost
         labor_by[order.equipment_id] = labor_by.get(order.equipment_id, Decimal("0")) + Decimal(labor_cost)
-        maintenance_by[order.equipment_id] = maintenance_by.get(order.equipment_id, Decimal("0")) + Decimal(order.actual_cost or 0)
+        # actual_cost is incremented when parts/labor are posted to a work order,
+        # so only the residual represents other maintenance cost. This prevents
+        # double-counting parts and labor in total operating cost.
+        recorded_cost = Decimal(order.actual_cost or 0)
+        residual_maintenance = max(recorded_cost - parts_cost - Decimal(labor_cost), Decimal("0"))
+        maintenance_by[order.equipment_id] = (
+            maintenance_by.get(order.equipment_id, Decimal("0")) + residual_maintenance
+        )
 
     rows = []
     for eid in equipment_ids:

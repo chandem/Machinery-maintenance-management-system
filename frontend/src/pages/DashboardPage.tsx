@@ -18,7 +18,7 @@ export default function DashboardPage() {
         const [s, st, eq, an] = await Promise.all([
           api.get<DashboardSummary>("/api/v1/dashboard/summary"),
           api.get<MaintenanceScheduleStatus[]>("/api/v1/maintenance-plans/status"),
-          api.get<{ items: Equipment[] }>("/api/v1/equipment?page=1&page_size=20"),
+          api.get<{ items: Equipment[] }>("/api/v1/equipment?page=1&page_size=100"),
           api.get<MaintenanceAnalytics>("/api/v1/maintenance/analytics"),
         ]);
         if (!cancelled) {
@@ -113,6 +113,27 @@ export default function DashboardPage() {
           <div className="stat-card ok"><div className="label">PM completion</div><div className="value">{Number(analytics.preventive_completion_rate).toFixed(0)}%</div></div>
           <div className={analytics.overdue_preventive_work_orders ? "stat-card danger" : "stat-card"}><div className="label">Overdue PM WOs</div><div className="value">{analytics.overdue_preventive_work_orders}</div></div>
           <div className="stat-card"><div className="label">PM actual cost</div><div className="value">{Number(analytics.preventive_actual_cost).toLocaleString()}</div></div>
+        </div>
+      )}
+
+      {summary && !loading && (
+        <div className="stats analytics-stats">
+          <div className="stat-card">
+            <div className="label">Breakdown events</div>
+            <div className="value">{performance.reduce((sum, row) => sum + row.breakdown_events, 0)}</div>
+          </div>
+          <div className="stat-card warn">
+            <div className="label">Average MTTR</div>
+            <div className="value">{performance.length ? (performance.reduce((sum, row) => sum + Number(row.mttr_hours || 0), 0) / performance.filter((row) => row.mttr_hours != null).length || 0).toFixed(1) : "—"} h</div>
+          </div>
+          <div className="stat-card ok">
+            <div className="label">Average MTBF</div>
+            <div className="value">{performance.filter((row) => row.mtbf_hours != null).length ? (performance.reduce((sum, row) => sum + Number(row.mtbf_hours || 0), 0) / performance.filter((row) => row.mtbf_hours != null).length).toFixed(1) : "—"} h</div>
+          </div>
+          <div className="stat-card danger">
+            <div className="label">Breakdown downtime</div>
+            <div className="value">{downtime.reduce((sum, row) => sum + Number(row.breakdown_hours), 0).toFixed(1)} h</div>
+          </div>
         </div>
       )}
 

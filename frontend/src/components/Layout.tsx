@@ -11,6 +11,7 @@ const links = [
   { to: "/fuel", label: "Fuel & Costs" },
   { to: "/purchases", label: "Purchases" },
   { to: "/fleet-management", label: "Fleet Management" },
+  { to: "/analytics", label: "Analytics" },
   { to: "/reports", label: "Reports" },
 ];
 
@@ -38,16 +39,10 @@ export default function Layout() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <span className="muted" style={{ fontSize: "0.85rem" }}>
-            {user?.email}
-          </span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
-            Sign out
-          </button>
+          <span className="muted" style={{ fontSize: "0.85rem" }}>{user?.email}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>Sign out</button>
         </header>
-        <main className="content">
-          <Outlet />
-        </main>
+        <main className="content"><Outlet /></main>
       </div>
     </div>
   );

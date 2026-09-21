@@ -226,6 +226,16 @@ export type DowntimeEvent = {
   created_at: string;
 };
 
+export type DowntimeSummary = {
+  equipment_id: number;
+  total_events: number;
+  open_events: number;
+  total_hours: number;
+  breakdown_hours: number;
+  maintenance_hours: number;
+  other_hours: number;
+};
+
 export const WO_NEXT: Record<string, string[]> = {
   draft: ["scheduled", "in_progress", "completed", "cancelled"],
   scheduled: ["in_progress", "completed", "cancelled"],

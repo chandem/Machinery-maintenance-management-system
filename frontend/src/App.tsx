@@ -14,15 +14,12 @@ import PurchasesPage from "./pages/PurchasesPage";
 import FleetManagementPage from "./pages/FleetManagementPage";
 import FuelPage from "./pages/FuelPage";
 import ReportsPage from "./pages/ReportsPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
-    return (
-      <div className="auth-page">
-        <p className="muted">Loading…</p>
-      </div>
-    );
+    return <div className="auth-page"><p className="muted">Loading…</p></div>;
   }
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -32,14 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route
-        path="/"
-        element={
-          <Protected>
-            <Layout />
-          </Protected>
-        }
-      >
+      <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<DashboardPage />} />
         <Route path="equipment" element={<EquipmentPage />} />
         <Route path="equipment/:id" element={<EquipmentDetailPage />} />
@@ -51,6 +41,7 @@ export default function App() {
         <Route path="inspections" element={<InspectionsPage />} />
         <Route path="purchases" element={<PurchasesPage />} />
         <Route path="fleet-management" element={<FleetManagementPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="reports" element={<ReportsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

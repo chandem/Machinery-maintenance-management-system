@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { DashboardSummary, DowntimeSummary, Equipment, MaintenanceAnalytics, MaintenancePerformance, MaintenanceScheduleStatus } from "../api/types";
+
+type EquipmentRisk = {
+  equipment: Equipment;
+  level: "Critical" | "High" | "Watch";
+  reasons: string[];
+};
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -27,12 +33,12 @@ export default function DashboardPage() {
           setEquipment(eq.items);
           setSchedule(st.filter((x) => x.status === "due" || x.status === "overdue").slice(0, 8));
           const results = await Promise.all(
-            eq.items.map(async (equipment) => {
+            eq.items.map(async (asset) => {
               const [maintenancePerformance, downtimeSummary] = await Promise.all([
-                api.get<MaintenancePerformance>(`/api/v1/maintenance/performance?equipment_id=${equipment.id}`),
-                api.get<DowntimeSummary>(`/api/v1/downtime/summary?equipment_id=${equipment.id}`),
+                api.get<MaintenancePerformance>(`/api/v1/maintenance/performance?equipment_id=${asset.id}`),
+                api.get<DowntimeSummary>(`/api/v1/downtime/summary?equipment_id=${asset.id}`),
               ]);
-              return { equipment, maintenancePerformance, downtimeSummary };
+              return { equipment: asset, maintenancePerformance, downtimeSummary };
             })
           );
           setPerformance(results
@@ -55,13 +61,75 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const equipmentRisk = useMemo<EquipmentRisk[]>(() => {
+    const performanceByEquipment = new Map(performance.map((row) => [row.equipment_id, row]));
+    const downtimeByEquipment = new Map(downtime.map((row) => [row.equipment_id, row]));
+    const overdueIds = new Set(schedule.filter((row) => row.status === "overdue").map((row) => row.equipment_id));
+    const today = new Date();
+    const in30Days = new Date(today);
+    in30Days.setDate(today.getDate() + 30);
+
+    return equipment.map((asset) => {
+      const perf = performanceByEquipment.get(asset.id);
+      const down = downtimeByEquipment.get(asset.id);
+      const reasons: string[] = [];
+      let points = 0;
+
+      if (asset.status === "down" || asset.status === "out_of_service") {
+        points += 5;
+        reasons.push(`Status: ${asset.status.replaceAll("_", " ")}`);
+      }
+      if (overdueIds.has(asset.id)) {
+        points += 4;
+        reasons.push("Overdue preventive maintenance");
+      }
+      if ((perf?.breakdown_events ?? 0) >= 3) {
+        points += 4;
+        reasons.push(`${perf?.breakdown_events} breakdown events`);
+      } else if ((perf?.breakdown_events ?? 0) >= 2) {
+        points += 2;
+        reasons.push(`${perf?.breakdown_events} breakdown events`);
+      }
+      if (down && Number(down.total_hours) >= 24) {
+        points += 3;
+        reasons.push(`${Number(down.total_hours).toFixed(1)} h downtime`);
+      } else if (down && Number(down.total_hours) >= 8) {
+        points += 2;
+        reasons.push(`${Number(down.total_hours).toFixed(1)} h downtime`);
+      }
+      if (perf?.mttr_hours != null && Number(perf.mttr_hours) >= 8) {
+        points += 2;
+        reasons.push(`MTTR ${Number(perf.mttr_hours).toFixed(1)} h`);
+      }
+      if (perf?.mtbf_hours != null && Number(perf.mtbf_hours) < 100) {
+        points += 2;
+        reasons.push(`MTBF ${Number(perf.mtbf_hours).toFixed(1)} h`);
+      }
+      if (asset.warranty_expiry) {
+        const warranty = new Date(asset.warranty_expiry);
+        if (warranty >= today && warranty <= in30Days) {
+          points += 1;
+          reasons.push(`Warranty expires ${asset.warranty_expiry}`);
+        }
+      }
+
+      const level: EquipmentRisk["level"] = points >= 7 ? "Critical" : points >= 4 ? "High" : "Watch";
+      return { equipment: asset, level, reasons };
+    })
+      .filter((row) => row.reasons.length > 0)
+      .sort((a, b) => {
+        const order = { Critical: 0, High: 1, Watch: 2 };
+        return order[a.level] - order[b.level] || b.reasons.length - a.reasons.length;
+      })
+      .slice(0, 8);
+  }, [equipment, performance, downtime, schedule]);
+
   return (
     <div>
       <h1 className="page-title">Dashboard</h1>
       <p className="page-sub">Fleet health and maintenance overview</p>
 
       {error && <div className="error-msg">{error}</div>}
-
       {loading && <div className="panel dashboard-loading"><div className="empty">Loading fleet health data…</div></div>}
 
       {!loading && !error && (
@@ -100,6 +168,27 @@ export default function DashboardPage() {
           <div className="stat-card warn"><div className="label">Average MTTR</div><div className="value">{performance.filter((row) => row.mttr_hours != null).length ? (performance.reduce((sum, row) => sum + Number(row.mttr_hours || 0), 0) / performance.filter((row) => row.mttr_hours != null).length).toFixed(1) : "—"} h</div></div>
           <div className="stat-card ok"><div className="label">Average MTBF</div><div className="value">{performance.filter((row) => row.mtbf_hours != null).length ? (performance.reduce((sum, row) => sum + Number(row.mtbf_hours || 0), 0) / performance.filter((row) => row.mtbf_hours != null).length).toFixed(1) : "—"} h</div></div>
           <div className="stat-card danger"><div className="label">Breakdown downtime</div><div className="value">{downtime.reduce((sum, row) => sum + Number(row.breakdown_hours), 0).toFixed(1)} h</div></div>
+        </div>
+      )}
+
+      {summary && !loading && equipmentRisk.length > 0 && (
+        <div className="panel">
+          <div className="panel-header">
+            <div><h2>Equipment risk & health</h2><div className="muted">Assets flagged from current status, maintenance and reliability data</div></div>
+            <strong>{equipmentRisk.length}</strong>
+          </div>
+          <div className="health-list">
+            {equipmentRisk.map((row) => (
+              <div key={row.equipment.id}>
+                <span>
+                  <strong>{row.equipment.asset_code} — {row.equipment.name}</strong>
+                  <br />
+                  <small>{row.reasons.join(" · ")}</small>
+                </span>
+                <span className={`badge ${row.level === "Critical" ? "badge-overdue" : "badge-due"}`}>{row.level}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

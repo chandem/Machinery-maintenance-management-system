@@ -280,3 +280,12 @@ export type FuelOperatingCostSummary = {
   total_operating_cost: number;
   by_equipment: FuelOperatingCostEquipment[];
 };
+
+export type FuelOperatingCostTrend = {
+  period: string;
+  fuel_cost: number;
+  maintenance_cost: number;
+  parts_cost: number;
+  labor_cost: number;
+  total_operating_cost: number;
+};

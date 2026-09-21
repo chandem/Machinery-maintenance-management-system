@@ -43,7 +43,8 @@ class MaintenanceScheduleStatusRead(BaseModel):
 
 
 class WorkOrderCreate(BaseModel):
-    work_order_number: str = Field(min_length=1, max_length=50)
+    # Optional — server generates WO-00001 style numbers when omitted/blank
+    work_order_number: Optional[str] = Field(default=None, max_length=50)
     equipment_id: int
     maintenance_plan_id: Optional[int] = None
     title: str = Field(min_length=1, max_length=200)
@@ -70,8 +71,19 @@ class WorkOrderUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-class WorkOrderRead(WorkOrderCreate):
+class WorkOrderRead(BaseModel):
     id: int
+    work_order_number: str
+    equipment_id: int
+    maintenance_plan_id: Optional[int] = None
+    title: str
+    description: Optional[str] = None
+    maintenance_type: str
+    priority: str
+    status: str
+    scheduled_date: Optional[date] = None
+    estimated_cost: Optional[Decimal] = None
+    notes: Optional[str] = None
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     verified_at: Optional[datetime]
@@ -131,7 +143,7 @@ class WorkOrderTaskCreate(BaseModel):
 class WorkOrderTaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     description: Optional[str] = Field(default=None, min_length=1, max_length=300)
-    status: Optional[str] = None  # pending | in_progress | done
+    status: Optional[str] = None
     estimated_hours: Optional[Decimal] = Field(default=None, ge=0)
     actual_hours: Optional[Decimal] = Field(default=None, ge=0)
     notes: Optional[str] = None

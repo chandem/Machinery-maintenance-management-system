@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
-import type { DashboardSummary, Equipment, MaintenanceAnalytics, MaintenancePerformance, MaintenanceScheduleStatus } from "../api/types";
+import type { DashboardSummary, DowntimeSummary, Equipment, MaintenanceAnalytics, MaintenancePerformance, MaintenanceScheduleStatus } from "../api/types";
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [schedule, setSchedule] = useState<MaintenanceScheduleStatus[]>([]);
   const [performance, setPerformance] = useState<Array<MaintenancePerformance & { equipment: Equipment }>>([]);
+  const [downtime, setDowntime] = useState<Array<DowntimeSummary & { equipment: Equipment }>>([]);
   const [analytics, setAnalytics] = useState<MaintenanceAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,12 +25,21 @@ export default function DashboardPage() {
           setSummary(s);
           setSchedule(st.filter((x) => x.status === "due" || x.status === "overdue").slice(0, 8));
           const results = await Promise.all(
-            eq.items.map(async (equipment) => ({
-              equipment,
-              ...(await api.get<MaintenancePerformance>(`/api/v1/maintenance/performance?equipment_id=${equipment.id}`)),
-            }))
+            eq.items.map(async (equipment) => {
+              const [maintenancePerformance, downtimeSummary] = await Promise.all([
+                api.get<MaintenancePerformance>(`/api/v1/maintenance/performance?equipment_id=${equipment.id}`),
+                api.get<DowntimeSummary>(`/api/v1/downtime/summary?equipment_id=${equipment.id}`),
+              ]);
+              return { equipment, maintenancePerformance, downtimeSummary };
+            })
           );
-          setPerformance(results.filter((x) => x.breakdown_events > 0));
+          setPerformance(results
+            .map(({ equipment, maintenancePerformance }) => ({ equipment, ...maintenancePerformance }))
+            .filter((x) => x.breakdown_events > 0));
+          setDowntime(results
+            .map(({ equipment, downtimeSummary }) => ({ equipment, ...downtimeSummary }))
+            .filter((x) => x.total_events > 0)
+            .sort((a, b) => Number(b.total_hours) - Number(a.total_hours)));
           setAnalytics(an);
         }
       } catch (err) {
@@ -118,6 +128,39 @@ export default function DashboardPage() {
           <div><span>Open downtime</span><strong>{summary.open_downtime_events ?? 0}</strong></div>
         </div></div>
       </div>}
+
+      <div className="panel performance-panel">
+        <div className="panel-header">
+          <div>
+            <h2>Downtime analysis</h2>
+            <div className="muted">Recorded downtime by asset, including open events</div>
+          </div>
+        </div>
+        {downtime.length === 0 ? (
+          <div className="empty">No downtime history is available yet.</div>
+        ) : (
+          <>
+            <div className="stats analytics-stats">
+              <div className="stat-card"><div className="label">Downtime hours</div><div className="value">{downtime.reduce((sum, row) => sum + Number(row.total_hours), 0).toFixed(1)}</div></div>
+              <div className="stat-card danger"><div className="label">Breakdown hours</div><div className="value">{downtime.reduce((sum, row) => sum + Number(row.breakdown_hours), 0).toFixed(1)}</div></div>
+              <div className="stat-card warn"><div className="label">Open events</div><div className="value">{downtime.reduce((sum, row) => sum + row.open_events, 0)}</div></div>
+            </div>
+            <table>
+              <thead><tr><th>Equipment</th><th>Events</th><th>Total downtime</th><th>Breakdown</th><th>Maintenance</th><th>Open</th></tr></thead>
+              <tbody>{downtime.slice(0, 8).map((row) => (
+                <tr key={row.equipment_id}>
+                  <td><strong>{row.equipment.asset_code}</strong><div className="muted">{row.equipment.name}</div></td>
+                  <td>{row.total_events}</td>
+                  <td>{Number(row.total_hours).toFixed(1)} h</td>
+                  <td>{Number(row.breakdown_hours).toFixed(1)} h</td>
+                  <td>{Number(row.maintenance_hours).toFixed(1)} h</td>
+                  <td>{row.open_events}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </>
+        )}
+      </div>
 
       <div className="panel performance-panel">
         <div className="panel-header">

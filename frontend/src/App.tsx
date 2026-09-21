@@ -15,11 +15,17 @@ import FleetManagementPage from "./pages/FleetManagementPage";
 import FuelPage from "./pages/FuelPage";
 import ReportsPage from "./pages/ReportsPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import UsersPage from "./pages/UsersPage";
+import AlertsPage from "./pages/AlertsPage";
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
-    return <div className="auth-page"><p className="muted">Loading…</p></div>;
+    return (
+      <div className="auth-page">
+        <p className="muted">Loading…</p>
+      </div>
+    );
   }
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -29,7 +35,14 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<Protected><Layout /></Protected>}>
+      <Route
+        path="/"
+        element={
+          <Protected>
+            <Layout />
+          </Protected>
+        }
+      >
         <Route index element={<DashboardPage />} />
         <Route path="equipment" element={<EquipmentPage />} />
         <Route path="equipment/:id" element={<EquipmentDetailPage />} />
@@ -43,6 +56,8 @@ export default function App() {
         <Route path="fleet-management" element={<FleetManagementPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
+        <Route path="users" element={<UsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

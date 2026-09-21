@@ -52,13 +52,16 @@ export default function WorkOrdersPage() {
     setBusy(true);
     setError(null);
     try {
-      await api.post("/api/v1/work-orders", {
-        work_order_number: form.work_order_number,
+      const body: Record<string, unknown> = {
         equipment_id: Number(form.equipment_id),
         title: form.title,
         maintenance_type: form.maintenance_type,
         priority: form.priority,
-      });
+      };
+      if (form.work_order_number.trim()) {
+        body.work_order_number = form.work_order_number.trim();
+      }
+      await api.post("/api/v1/work-orders", body);
       setShowForm(false);
       setForm({ work_order_number: "", equipment_id: "", title: "", maintenance_type: "corrective", priority: "medium" });
       setPage(1);
@@ -79,7 +82,10 @@ export default function WorkOrdersPage() {
 
       <div className="panel">
         <div className="panel-header">
-          <div><h2>All work orders</h2><div className="muted">{data ? `${data.total} maintenance jobs` : "Loading maintenance jobs…"}</div></div>
+          <div>
+            <h2>All work orders</h2>
+            <div className="muted">{data ? `${data.total} maintenance jobs` : "Loading maintenance jobs…"}</div>
+          </div>
           <div className="toolbar">
             <select
               className="input"
@@ -108,13 +114,12 @@ export default function WorkOrdersPage() {
           <form onSubmit={onCreate} style={{ padding: "1rem 1.15rem", borderBottom: "1px solid var(--border)" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
               <div className="form-group" style={{ margin: 0 }}>
-                <label>WO number</label>
+                <label>WO number (optional)</label>
                 <input
                   className="input"
-                  required
                   value={form.work_order_number}
                   onChange={(e) => setForm({ ...form, work_order_number: e.target.value })}
-                  placeholder="WO-001"
+                  placeholder="Auto if blank"
                 />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
@@ -169,42 +174,42 @@ export default function WorkOrdersPage() {
         {loading ? (
           <div className="empty">Loading work orders…</div>
         ) : !data || data.items.length === 0 ? (
-          <div className="empty">No work orders yet.</div>
+          <div className="empty">No work orders yet. Create one to get started.</div>
         ) : (
           <>
             <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Number</th>
-                  <th>Title</th>
-                  <th>Type</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Scheduled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((wo) => (
-                  <tr key={wo.id}>
-                    <td>
-                      <Link to={`/work-orders/${wo.id}`}>
-                        <strong style={{ color: "var(--accent)" }}>{wo.work_order_number}</strong>
-                      </Link>
-                    </td>
-                    <td>{wo.title}</td>
-                    <td style={{ textTransform: "capitalize" }}>{wo.maintenance_type}</td>
-                    <td>
-                      <span className={`badge badge-${wo.priority}`}>{wo.priority}</span>
-                    </td>
-                    <td>
-                      <span className={`badge badge-${wo.status}`}>{wo.status.replace(/_/g, " ")}</span>
-                    </td>
-                    <td>{wo.scheduled_date ?? "—"}</td>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Number</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Scheduled</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.items.map((wo) => (
+                    <tr key={wo.id}>
+                      <td>
+                        <Link to={`/work-orders/${wo.id}`}>
+                          <strong style={{ color: "var(--accent)" }}>{wo.work_order_number}</strong>
+                        </Link>
+                      </td>
+                      <td>{wo.title}</td>
+                      <td style={{ textTransform: "capitalize" }}>{wo.maintenance_type}</td>
+                      <td>
+                        <span className={`badge badge-${wo.priority}`}>{wo.priority}</span>
+                      </td>
+                      <td>
+                        <span className={`badge badge-${wo.status}`}>{wo.status.replace(/_/g, " ")}</span>
+                      </td>
+                      <td>{wo.scheduled_date ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             <div className="pagination">
               <span>

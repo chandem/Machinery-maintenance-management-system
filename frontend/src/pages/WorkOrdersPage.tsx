@@ -3,6 +3,11 @@ import { Link } from "react-router-dom";
 import { api, ApiError, type Page } from "../api/client";
 import type { Equipment, WorkOrder } from "../api/types";
 
+function nextWoNumber() {
+  const stamp = Date.now().toString(36).toUpperCase();
+  return `WO-${stamp}`;
+}
+
 export default function WorkOrdersPage() {
   const [data, setData] = useState<Page<WorkOrder> | null>(null);
   const [page, setPage] = useState(1);
@@ -52,16 +57,13 @@ export default function WorkOrdersPage() {
     setBusy(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = {
+      await api.post("/api/v1/work-orders", {
+        work_order_number: form.work_order_number.trim() || nextWoNumber(),
         equipment_id: Number(form.equipment_id),
         title: form.title,
         maintenance_type: form.maintenance_type,
         priority: form.priority,
-      };
-      if (form.work_order_number.trim()) {
-        body.work_order_number = form.work_order_number.trim();
-      }
-      await api.post("/api/v1/work-orders", body);
+      });
       setShowForm(false);
       setForm({ work_order_number: "", equipment_id: "", title: "", maintenance_type: "corrective", priority: "medium" });
       setPage(1);

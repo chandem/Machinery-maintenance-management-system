@@ -248,7 +248,6 @@ export const WO_NEXT: Record<string, string[]> = {
   cancelled: [],
 };
 
-
 export type FuelEquipmentSummary = {
   equipment_id: number;
   asset_code: string;
@@ -269,7 +268,6 @@ export type FuelSummary = {
   average_unit_cost: number | null;
   by_equipment: FuelEquipmentSummary[];
 };
-
 
 export type FuelOperatingCostEquipment = {
   equipment_id: number;

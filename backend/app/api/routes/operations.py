@@ -367,6 +367,22 @@ def fuel_summary(
 
     totals_by_equipment: dict[int, dict] = {}
     previous: dict[int, FuelRecord] = {}
+    if start_date is not None and rows:
+        period_start = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+        equipment_ids = {row.equipment_id for row in rows}
+        for eid in equipment_ids:
+            baseline = db.scalar(
+                select(FuelRecord)
+                .where(
+                    FuelRecord.equipment_id == eid,
+                    FuelRecord.recorded_at < period_start,
+                )
+                .order_by(FuelRecord.recorded_at.desc())
+                .limit(1)
+            )
+            if baseline is not None:
+                previous[eid] = baseline
+
     total_quantity = Decimal("0")
     total_cost = Decimal("0")
     priced_quantity = Decimal("0")

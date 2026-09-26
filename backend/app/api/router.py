@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes.admin import router as admin_router
+from app.api.routes.analytics import router as analytics_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.documents import router as documents_router
@@ -22,3 +23,4 @@ api_router.include_router(operations_router)
 api_router.include_router(purchase_router)
 api_router.include_router(documents_router)
 api_router.include_router(reports_router)
+api_router.include_router(analytics_router)

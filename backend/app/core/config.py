@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     # When true, POST/PATCH/DELETE require a valid JWT (GET stays open for dashboards)
     require_auth_writes: bool = True
     public_app_url: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

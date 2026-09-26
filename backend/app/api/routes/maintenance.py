@@ -65,8 +65,8 @@ def maintenance_analytics(equipment_id: int | None = None, db: Session = Depends
     completed_statuses = {"completed", "verified", "closed"}
     completed = [o for o in orders if o.status in completed_statuses]
     overdue = [o for o in orders if o.scheduled_date is not None and o.scheduled_date < today and o.status not in completed_statuses | {"cancelled"}]
-    estimated = sum((o.estimated_cost or Decimal("0")) for o in orders)
-    actual = sum((o.actual_cost or Decimal("0")) for o in orders)
+    estimated = sum((Decimal(str(o.estimated_cost)) if o.estimated_cost is not None else Decimal("0")) for o in orders)
+    actual = sum((Decimal(str(o.actual_cost)) if o.actual_cost is not None else Decimal("0")) for o in orders)
     total = len(orders)
     rate = Decimal(len(completed)) * Decimal("100") / Decimal(total) if total else Decimal("0")
     return MaintenanceAnalyticsRead(equipment_id=equipment_id, preventive_work_orders=total, completed_preventive_work_orders=len(completed), overdue_preventive_work_orders=len(overdue), preventive_completion_rate=rate.quantize(Decimal("0.01")), preventive_estimated_cost=estimated.quantize(Decimal("0.01")), preventive_actual_cost=actual.quantize(Decimal("0.01")))

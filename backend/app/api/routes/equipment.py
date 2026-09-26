@@ -8,42 +8,25 @@ from app.api.deps import require_write_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
-from app.models.equipment import (
-    Equipment,
-    EquipmentCategory,
-    Location,
-    MeterReading,
-    Operator,
-)
+from app.models.equipment import Equipment, EquipmentCategory, Location, MeterReading, Operator
 from app.models.user import User
 from app.schemas.equipment import (
-    EquipmentCategoryCreate,
-    EquipmentCategoryRead,
-    EquipmentCreate,
-    EquipmentRead,
-    EquipmentUpdate,
-    LocationCreate,
-    LocationRead,
-    MeterReadingCreate,
-    MeterReadingRead,
-    OperatorCreate,
-    OperatorRead,
-    OperatorUpdate,
+    EquipmentCategoryCreate, EquipmentCategoryRead, EquipmentCreate, EquipmentRead, EquipmentUpdate,
+    LocationCreate, LocationRead, MeterReadingCreate, MeterReadingRead, OperatorCreate, OperatorRead, OperatorUpdate,
 )
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/equipment", tags=["Equipment"])
 
 
 @router.post("/categories", response_model=EquipmentCategoryRead, status_code=status.HTTP_201_CREATED)
-def create_category(
-    payload: EquipmentCategoryCreate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def create_category(payload: EquipmentCategoryCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if db.scalar(select(EquipmentCategory).where(EquipmentCategory.name == payload.name)):
         raise HTTPException(status_code=409, detail="Category name already exists")
     item = EquipmentCategory(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="equipment_category", entity_id=item.id, description=f"Created equipment category '{item.name}'", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -63,15 +46,13 @@ def get_category(category_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/locations", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
-def create_location(
-    payload: LocationCreate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def create_location(payload: LocationCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if db.scalar(select(Location).where(Location.name == payload.name)):
         raise HTTPException(status_code=409, detail="Location name already exists")
     item = Location(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="location", entity_id=item.id, description=f"Created location '{item.name}'", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -91,15 +72,13 @@ def get_location(location_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/operators", response_model=OperatorRead, status_code=status.HTTP_201_CREATED)
-def create_operator(
-    payload: OperatorCreate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def create_operator(payload: OperatorCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if db.scalar(select(Operator).where(Operator.employee_code == payload.employee_code)):
         raise HTTPException(status_code=409, detail="Employee code already exists")
     item = Operator(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="operator", entity_id=item.id, description=f"Created operator '{item.full_name}'", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -122,54 +101,40 @@ def get_operator(operator_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/operators/{operator_id}", response_model=OperatorRead)
-def update_operator(
-    operator_id: int,
-    payload: OperatorUpdate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def update_operator(operator_id: int, payload: OperatorUpdate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     item = db.get(Operator, operator_id)
     if not item:
         raise HTTPException(status_code=404, detail="Operator not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
+    record_audit(db, action="update", entity_type="operator", entity_id=item.id, description=f"Updated operator '{item.full_name}'", user=user)
     db.commit()
     db.refresh(item)
     return item
 
 
 @router.post("/meter-readings", response_model=MeterReadingRead, status_code=status.HTTP_201_CREATED)
-def create_meter_reading(
-    payload: MeterReadingCreate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def create_meter_reading(payload: MeterReadingCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     equipment = db.get(Equipment, payload.equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
-
     reading = MeterReading(**payload.model_dump())
     db.add(reading)
-
     if payload.reading_type == "hour_meter":
         if equipment.hour_meter is None or payload.reading_value > equipment.hour_meter:
             equipment.hour_meter = payload.reading_value
     elif payload.reading_type == "odometer":
         if equipment.odometer is None or payload.reading_value > equipment.odometer:
             equipment.odometer = payload.reading_value
-
+    db.flush()
+    record_audit(db, action="create", entity_type="meter_reading", entity_id=reading.id, description=f"Recorded {payload.reading_type} reading {payload.reading_value} for asset {equipment.asset_code}", user=user)
     db.commit()
     db.refresh(reading)
     return reading
 
 
 @router.get("/meter-readings", response_model=Page[MeterReadingRead])
-def list_meter_readings(
-    equipment_id: int | None = None,
-    reading_type: str | None = None,
-    params: PageParams = Depends(),
-    db: Session = Depends(get_db),
-):
+def list_meter_readings(equipment_id: int | None = None, reading_type: str | None = None, params: PageParams = Depends(), db: Session = Depends(get_db)):
     query = select(MeterReading).order_by(MeterReading.recorded_at.desc())
     if equipment_id is not None:
         query = query.where(MeterReading.equipment_id == equipment_id)
@@ -179,11 +144,7 @@ def list_meter_readings(
 
 
 @router.post("", response_model=EquipmentRead, status_code=status.HTTP_201_CREATED)
-def create_equipment(
-    payload: EquipmentCreate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def create_equipment(payload: EquipmentCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     existing = db.scalar(select(Equipment).where(Equipment.asset_code == payload.asset_code))
     if existing:
         raise HTTPException(status_code=409, detail="Asset code already exists")
@@ -195,20 +156,15 @@ def create_equipment(
         raise HTTPException(status_code=404, detail="Operator not found")
     equipment = Equipment(**payload.model_dump())
     db.add(equipment)
+    db.flush()
+    record_audit(db, action="create", entity_type="equipment", entity_id=equipment.id, description=f"Created equipment {equipment.asset_code} — {equipment.name}", user=user)
     db.commit()
     db.refresh(equipment)
     return equipment
 
 
 @router.get("", response_model=Page[EquipmentRead])
-def list_equipment(
-    status_filter: str | None = Query(None, alias="status"),
-    search: str | None = None,
-    category_id: int | None = None,
-    location_id: int | None = None,
-    params: PageParams = Depends(),
-    db: Session = Depends(get_db),
-):
+def list_equipment(status_filter: str | None = Query(None, alias="status"), search: str | None = None, category_id: int | None = None, location_id: int | None = None, params: PageParams = Depends(), db: Session = Depends(get_db)):
     query = select(Equipment).order_by(Equipment.id)
     if status_filter:
         query = query.where(Equipment.status == status_filter)
@@ -218,32 +174,18 @@ def list_equipment(
         query = query.where(Equipment.location_id == location_id)
     if search:
         term = f"%{search.strip()}%"
-        query = query.where(
-            or_(
-                Equipment.asset_code.ilike(term),
-                Equipment.name.ilike(term),
-                Equipment.serial_number.ilike(term),
-                Equipment.plate_number.ilike(term),
-            )
-        )
+        query = query.where(or_(Equipment.asset_code.ilike(term), Equipment.name.ilike(term), Equipment.serial_number.ilike(term), Equipment.plate_number.ilike(term)))
     return paginate(db, query, params, EquipmentRead)
 
 
 @router.get("/{equipment_id}/qr")
 def equipment_qr(equipment_id: int, db: Session = Depends(get_db)):
-    """Return QR payload URL for asset identification (scan opens equipment page)."""
     equipment = db.get(Equipment, equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
     target = f"{settings.public_app_url.rstrip('/')}/equipment/{equipment.id}"
-    # Public QR image service — no extra Python dependency
     image_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={quote(target, safe='')}"
-    return {
-        "equipment_id": equipment.id,
-        "asset_code": equipment.asset_code,
-        "payload": target,
-        "qr_image_url": image_url,
-    }
+    return {"equipment_id": equipment.id, "asset_code": equipment.asset_code, "payload": target, "qr_image_url": image_url}
 
 
 @router.get("/{equipment_id}", response_model=EquipmentRead)
@@ -255,12 +197,7 @@ def get_equipment(equipment_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{equipment_id}", response_model=EquipmentRead)
-def update_equipment(
-    equipment_id: int,
-    payload: EquipmentUpdate,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def update_equipment(equipment_id: int, payload: EquipmentUpdate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     equipment = db.get(Equipment, equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
@@ -271,21 +208,23 @@ def update_equipment(
         raise HTTPException(status_code=404, detail="Location not found")
     if "operator_id" in data and data["operator_id"] is not None and not db.get(Operator, data["operator_id"]):
         raise HTTPException(status_code=404, detail="Operator not found")
+    old_status = equipment.status
     for key, value in data.items():
         setattr(equipment, key, value)
+    action = "status_change" if "status" in data and data["status"] != old_status else "update"
+    description = f"Changed asset {equipment.asset_code} status from '{old_status}' to '{equipment.status}'" if action == "status_change" else f"Updated equipment {equipment.asset_code}"
+    record_audit(db, action=action, entity_type="equipment", entity_id=equipment.id, description=description, user=user)
     db.commit()
     db.refresh(equipment)
     return equipment
 
 
 @router.delete("/{equipment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_equipment(
-    equipment_id: int,
-    db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
-):
+def delete_equipment(equipment_id: int, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     equipment = db.get(Equipment, equipment_id)
     if not equipment:
         raise HTTPException(status_code=404, detail="Equipment not found")
+    asset_code = equipment.asset_code
     db.delete(equipment)
+    record_audit(db, action="delete", entity_type="equipment", entity_id=equipment_id, description=f"Deleted equipment {asset_code}", user=user)
     db.commit()

@@ -299,3 +299,57 @@ export type FuelOperatingCostTrend = {
   labor_cost: number;
   total_operating_cost: number;
 };
+
+export type FleetEquipmentAnalytics = {
+  equipment_id: number;
+  asset_code: string;
+  equipment_name: string;
+  status: string;
+  breakdown_events: number;
+  breakdown_hours: number;
+  downtime_hours: number;
+  mttr_hours: number | null;
+  mtbf_hours: number | null;
+  overdue_pm: boolean;
+  open_work_orders: number;
+  total_operating_cost: number;
+  cost_per_hour: number | null;
+  attention_reasons: string[];
+};
+
+export type FleetCostTrend = {
+  period: string;
+  fuel_cost: number;
+  maintenance_cost: number;
+  parts_cost: number;
+  labor_cost: number;
+  total_operating_cost: number;
+};
+
+export type FleetAnalytics = {
+  fleet_size: number;
+  operational_assets: number;
+  maintenance_assets: number;
+  down_assets: number;
+  out_of_service_assets: number;
+  availability_percent: number | null;
+  open_work_orders: number;
+  overdue_pm: number;
+  pm_work_orders: number;
+  completed_pm_work_orders: number;
+  pm_completion_percent: number | null;
+  breakdown_events: number;
+  breakdown_downtime_hours: number;
+  total_downtime_hours: number;
+  average_mttr_hours: number | null;
+  average_mtbf_hours: number | null;
+  fuel_cost: number;
+  maintenance_cost: number;
+  parts_cost: number;
+  labor_cost: number;
+  total_operating_cost: number;
+  total_operating_hours: number;
+  operating_cost_per_hour: number | null;
+  equipment: FleetEquipmentAnalytics[];
+  monthly_trend: FleetCostTrend[];
+};

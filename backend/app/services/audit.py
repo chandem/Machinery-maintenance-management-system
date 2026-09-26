@@ -15,8 +15,13 @@ def record_audit(
     description: str,
     user: Optional[User] = None,
 ) -> AuditLog:
+    # Route functions receive a real User through FastAPI dependency injection.
+    # Some unit tests call route functions directly, where an unresolved Depends
+    # object can be passed instead. Treat that case as an anonymous audit entry.
+    user_id = getattr(user, "id", None)
+
     entry = AuditLog(
-        user_id=user.id if user else None,
+        user_id=user_id,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,

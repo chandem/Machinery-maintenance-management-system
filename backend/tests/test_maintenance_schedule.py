@@ -15,7 +15,7 @@ from app.api.routes.maintenance import (
     update_work_order,
 )
 from app.core.database import Base
-from app.models import Equipment, Inventory, MaintenancePlan, Part, PartTransaction
+from app.models import AuditLog, Equipment, Inventory, MaintenancePlan, Part, PartTransaction
 from app.schemas.maintenance import (
     MaintenanceServiceComplete,
     WorkOrderCreate,
@@ -65,6 +65,8 @@ def test_complete_service_advances_date_and_meter(db: Session):
     assert result.next_due_date == date.today() + timedelta(days=30)
     assert result.next_due_meter == Decimal("1250.00")
     assert maintenance_plan_status(db)[0].status == "scheduled"
+    audit = db.scalar(select(AuditLog).where(AuditLog.entity_type == "maintenance_plan", AuditLog.entity_id == plan.id, AuditLog.action == "service_complete"))
+    assert audit is not None
 
 
 def test_complete_service_rejects_early_date(db: Session):
@@ -98,6 +100,8 @@ def test_preventive_work_order_completion_advances_plan(db: Session):
     assert plan.last_service_date == date.today()
     assert plan.next_due_date == date.today() + timedelta(days=30)
     assert plan.next_due_meter == Decimal("1250.00")
+    audit = db.scalar(select(AuditLog).where(AuditLog.entity_type == "work_order", AuditLog.entity_id == order.id, AuditLog.action == "status_change"))
+    assert audit is not None
 
 
 def test_work_order_rejects_plan_for_other_equipment(db: Session):
@@ -161,6 +165,8 @@ def test_work_order_part_issuance_updates_stock_transaction_and_cost(db: Session
     assert tx.quantity == Decimal("3.00")
     assert tx.reference == "WO:WO-PART-001:PART:" + str(part.id)
     assert order.actual_cost == Decimal("450.00")
+    audit = db.scalar(select(AuditLog).where(AuditLog.entity_type == "inventory", AuditLog.entity_id == part.id, AuditLog.action == "transaction"))
+    assert audit is not None
 
 
 def test_work_order_part_issuance_rejects_insufficient_stock(db: Session):
@@ -221,6 +227,8 @@ def test_return_work_order_part_restores_stock_and_reduces_cost(db: Session):
     assert returned.id == item.id
     assert inventory.quantity_on_hand == Decimal("7.00")
     assert order.actual_cost == Decimal("600.00")
+    audits = db.scalars(select(AuditLog).where(AuditLog.entity_type == "inventory", AuditLog.entity_id == part.id, AuditLog.action == "transaction")).all()
+    assert len(audits) == 2
 
     with pytest.raises(Exception):
         return_work_order_part(

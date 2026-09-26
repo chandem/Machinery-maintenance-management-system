@@ -5,6 +5,7 @@ from .user import User
 from .operations import Inspection, FuelRecord, DowntimeEvent
 from .purchase import PurchaseRequest
 from .documents import EquipmentDocument
+from .audit import AuditLog
 
 __all__ = [
     "Equipment", "EquipmentCategory", "Location", "Operator", "MeterReading",
@@ -14,4 +15,5 @@ __all__ = [
     "Inspection", "FuelRecord", "DowntimeEvent",
     "PurchaseRequest",
     "EquipmentDocument",
+    "AuditLog",
 ]

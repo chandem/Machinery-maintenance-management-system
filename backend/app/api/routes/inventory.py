@@ -3,6 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_write_user
+from app.models.user import User
+from app.services.audit import record_audit
 from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models import Inventory, Part, PartTransaction, Supplier
@@ -22,11 +24,13 @@ router = APIRouter(tags=["Inventory"])
 
 
 @router.post("/suppliers", response_model=SupplierRead, status_code=status.HTTP_201_CREATED)
-def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
+def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if db.scalar(select(Supplier).where(Supplier.name == payload.name)):
         raise HTTPException(409, "Supplier name already exists")
     item = Supplier(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="supplier", entity_id=item.id, description=f"Created supplier {item.name}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -38,13 +42,15 @@ def list_suppliers(db: Session = Depends(get_db)):
 
 
 @router.post("/parts", response_model=PartRead, status_code=status.HTTP_201_CREATED)
-def create_part(payload: PartCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
+def create_part(payload: PartCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if db.scalar(select(Part).where(Part.part_number == payload.part_number)):
         raise HTTPException(409, "Part number already exists")
     if payload.supplier_id and not db.get(Supplier, payload.supplier_id):
         raise HTTPException(404, "Supplier not found")
     item = Part(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="part", entity_id=item.id, description=f"Created part {item.part_number} - {item.name}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -57,13 +63,15 @@ def list_parts(params: PageParams = Depends(), db: Session = Depends(get_db)):
 
 
 @router.post("/inventory", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
-def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
+def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if not db.get(Part, payload.part_id):
         raise HTTPException(404, "Part not found")
     if db.scalar(select(Inventory).where(Inventory.part_id == payload.part_id)):
         raise HTTPException(409, "Inventory record already exists")
     item = Inventory(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="inventory", entity_id=item.id, description=f"Created inventory record for part {item.part_id}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -104,7 +112,7 @@ def inventory_status(low_stock_only: bool = False, db: Session = Depends(get_db)
 
 
 @router.post("/inventory/transactions", response_model=PartTransactionRead, status_code=status.HTTP_201_CREATED)
-def create_transaction(payload: PartTransactionCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
+def create_transaction(payload: PartTransactionCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     if not db.get(Part, payload.part_id):
         raise HTTPException(404, "Part not found")
     inventory = db.scalar(select(Inventory).where(Inventory.part_id == payload.part_id))
@@ -120,6 +128,8 @@ def create_transaction(payload: PartTransactionCreate, db: Session = Depends(get
         inventory.quantity_on_hand = payload.quantity
     tx = PartTransaction(**payload.model_dump())
     db.add(tx)
+    db.flush()
+    record_audit(db, action="transaction", entity_type="inventory", entity_id=tx.part_id, description=f"Inventory transaction {tx.transaction_type} quantity {tx.quantity} for part {tx.part_id}", user=user)
     db.commit()
     db.refresh(tx)
     return tx

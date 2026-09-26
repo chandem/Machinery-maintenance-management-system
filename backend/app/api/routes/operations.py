@@ -458,7 +458,7 @@ def fuel_summary(
 def create_downtime(
     payload: DowntimeCreate,
     db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
+    user: User | None = Depends(require_write_user),
 ):
     if db.get(Equipment, payload.equipment_id) is None:
         raise HTTPException(404, "Equipment not found")
@@ -466,6 +466,8 @@ def create_downtime(
         raise HTTPException(400, "ended_at cannot be before started_at")
     item = DowntimeEvent(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="downtime", entity_id=item.id, description=f"Created {payload.category} downtime event for equipment {payload.equipment_id}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -491,7 +493,7 @@ def update_downtime(
     event_id: int,
     payload: DowntimeUpdate,
     db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
+    user: User | None = Depends(require_write_user),
 ):
     item = db.get(DowntimeEvent, event_id)
     if item is None:
@@ -501,6 +503,7 @@ def update_downtime(
         raise HTTPException(400, "ended_at cannot be before started_at")
     for key, value in data.items():
         setattr(item, key, value)
+    record_audit(db, action="update", entity_type="downtime", entity_id=item.id, description=f"Updated downtime event #{item.id}", user=user)
     db.commit()
     db.refresh(item)
     return item

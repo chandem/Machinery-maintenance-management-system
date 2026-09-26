@@ -10,32 +10,15 @@ from app.core.database import get_db
 from app.core.pagination import Page, PageParams, paginate
 from app.models.equipment import Equipment
 from app.models.inventory import Inventory, Part, PartTransaction
-from app.models.maintenance import (
-    MaintenancePlan,
-    WorkOrder,
-    WorkOrderLabor,
-    WorkOrderPart,
-    WorkOrderTask,
-)
+from app.models.maintenance import MaintenancePlan, WorkOrder, WorkOrderLabor, WorkOrderPart, WorkOrderTask
+from app.models.user import User
 from app.schemas.maintenance import (
-    MaintenanceAnalyticsRead,
-    MaintenancePlanCreate,
-    MaintenancePlanRead,
-    MaintenanceScheduleStatusRead,
-    MaintenanceServiceComplete,
-    WorkOrderCostRead,
-    WorkOrderCreate,
-    WorkOrderLaborCreate,
-    WorkOrderLaborRead,
-    WorkOrderPartCreate,
-    WorkOrderPartRead,
-    WorkOrderPartReturn,
-    WorkOrderRead,
-    WorkOrderTaskCreate,
-    WorkOrderTaskRead,
-    WorkOrderTaskUpdate,
-    WorkOrderUpdate,
+    MaintenanceAnalyticsRead, MaintenancePlanCreate, MaintenancePlanRead, MaintenanceScheduleStatusRead,
+    MaintenanceServiceComplete, WorkOrderCostRead, WorkOrderCreate, WorkOrderLaborCreate, WorkOrderLaborRead,
+    WorkOrderPartCreate, WorkOrderPartRead, WorkOrderPartReturn, WorkOrderRead, WorkOrderTaskCreate,
+    WorkOrderTaskRead, WorkOrderTaskUpdate, WorkOrderUpdate,
 )
+from app.services.audit import record_audit
 
 router = APIRouter(tags=["Maintenance"])
 
@@ -54,23 +37,12 @@ def _part_reference(work_order_number: str, part_id: int) -> str:
     return f"WO:{work_order_number}:PART:{part_id}"
 
 
-def _advance_plan(
-    plan: MaintenancePlan,
-    equipment: Equipment,
-    service_date: date,
-    service_meter: Decimal | None,
-) -> None:
+def _advance_plan(plan: MaintenancePlan, equipment: Equipment, service_date: date, service_meter: Decimal | None) -> None:
     meter = service_meter if service_meter is not None else equipment.hour_meter
     plan.last_service_date = service_date
     plan.last_service_meter = meter
-    plan.next_due_date = (
-        service_date + timedelta(days=plan.interval_days) if plan.interval_days is not None else None
-    )
-    plan.next_due_meter = (
-        meter + plan.interval_hours
-        if plan.interval_hours is not None and meter is not None
-        else None
-    )
+    plan.next_due_date = service_date + timedelta(days=plan.interval_days) if plan.interval_days is not None else None
+    plan.next_due_meter = meter + plan.interval_hours if plan.interval_hours is not None and meter is not None else None
     if meter is not None and (equipment.hour_meter is None or meter > equipment.hour_meter):
         equipment.hour_meter = meter
 
@@ -80,10 +52,7 @@ def _validate_status_transition(current: str, new: str) -> None:
         return
     allowed = WO_TRANSITIONS.get(current, set())
     if new not in allowed:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status transition: {current} -> {new}. Allowed: {sorted(allowed) or 'none'}",
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid status transition: {current} -> {new}. Allowed: {sorted(allowed) or 'none'}")
 
 
 @router.get("/maintenance/analytics", response_model=MaintenanceAnalyticsRead)
@@ -95,43 +64,30 @@ def maintenance_analytics(equipment_id: int | None = None, db: Session = Depends
     today = date.today()
     completed_statuses = {"completed", "verified", "closed"}
     completed = [o for o in orders if o.status in completed_statuses]
-    overdue = [
-        o for o in orders
-        if o.scheduled_date is not None and o.scheduled_date < today and o.status not in completed_statuses | {"cancelled"}
-    ]
+    overdue = [o for o in orders if o.scheduled_date is not None and o.scheduled_date < today and o.status not in completed_statuses | {"cancelled"}]
     estimated = sum((o.estimated_cost or Decimal("0")) for o in orders)
     actual = sum((o.actual_cost or Decimal("0")) for o in orders)
     total = len(orders)
-    rate = (Decimal(len(completed)) * Decimal("100") / Decimal(total)) if total else Decimal("0")
-    return MaintenanceAnalyticsRead(
-        equipment_id=equipment_id,
-        preventive_work_orders=total,
-        completed_preventive_work_orders=len(completed),
-        overdue_preventive_work_orders=len(overdue),
-        preventive_completion_rate=rate.quantize(Decimal("0.01")),
-        preventive_estimated_cost=estimated.quantize(Decimal("0.01")),
-        preventive_actual_cost=actual.quantize(Decimal("0.01")),
-    )
+    rate = Decimal(len(completed)) * Decimal("100") / Decimal(total) if total else Decimal("0")
+    return MaintenanceAnalyticsRead(equipment_id=equipment_id, preventive_work_orders=total, completed_preventive_work_orders=len(completed), overdue_preventive_work_orders=len(overdue), preventive_completion_rate=rate.quantize(Decimal("0.01")), preventive_estimated_cost=estimated.quantize(Decimal("0.01")), preventive_actual_cost=actual.quantize(Decimal("0.01")))
 
 
 @router.post("/maintenance-plans", response_model=MaintenancePlanRead, status_code=status.HTTP_201_CREATED)
-def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
-    if db.get(Equipment, payload.equipment_id) is None:
+def create_maintenance_plan(payload: MaintenancePlanCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
+    equipment = db.get(Equipment, payload.equipment_id)
+    if equipment is None:
         raise HTTPException(404, "Equipment not found")
     plan = MaintenancePlan(**payload.model_dump())
     db.add(plan)
+    db.flush()
+    record_audit(db, action="create", entity_type="maintenance_plan", entity_id=plan.id, description=f"Created maintenance plan '{plan.name}' for {equipment.asset_code}", user=user)
     db.commit()
     db.refresh(plan)
     return plan
 
 
 @router.get("/maintenance-plans", response_model=Page[MaintenancePlanRead])
-def list_maintenance_plans(
-    equipment_id: int | None = None,
-    active_only: bool = False,
-    params: PageParams = Depends(),
-    db: Session = Depends(get_db),
-):
+def list_maintenance_plans(equipment_id: int | None = None, active_only: bool = False, params: PageParams = Depends(), db: Session = Depends(get_db)):
     query = select(MaintenancePlan).order_by(MaintenancePlan.id.desc())
     if equipment_id is not None:
         query = query.where(MaintenancePlan.equipment_id == equipment_id)
@@ -141,12 +97,7 @@ def list_maintenance_plans(
 
 
 @router.post("/maintenance-plans/{plan_id}/complete", response_model=MaintenancePlanRead)
-def complete_maintenance_service(
-    plan_id: int,
-    payload: MaintenanceServiceComplete,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
+def complete_maintenance_service(plan_id: int, payload: MaintenanceServiceComplete, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     plan = db.get(MaintenancePlan, plan_id)
     if plan is None:
         raise HTTPException(404, "Maintenance plan not found")
@@ -155,13 +106,10 @@ def complete_maintenance_service(
         raise HTTPException(404, "Equipment not found")
     if plan.next_due_date is not None and payload.service_date < plan.next_due_date:
         raise HTTPException(400, "Service date cannot be before the scheduled due date")
-    if (
-        payload.service_meter is not None
-        and plan.next_due_meter is not None
-        and payload.service_meter < plan.next_due_meter
-    ):
+    if payload.service_meter is not None and plan.next_due_meter is not None and payload.service_meter < plan.next_due_meter:
         raise HTTPException(400, "Service meter cannot be below the scheduled due meter")
     _advance_plan(plan, equipment, payload.service_date, payload.service_meter)
+    record_audit(db, action="service_complete", entity_type="maintenance_plan", entity_id=plan.id, description=f"Completed maintenance service '{plan.name}' for {equipment.asset_code}", user=user)
     db.commit()
     db.refresh(plan)
     return plan
@@ -169,55 +117,24 @@ def complete_maintenance_service(
 
 @router.get("/maintenance-plans/status", response_model=list[MaintenanceScheduleStatusRead])
 def maintenance_plan_status(db: Session = Depends(get_db)):
-    plans = db.execute(
-        select(MaintenancePlan, Equipment)
-        .join(Equipment, Equipment.id == MaintenancePlan.equipment_id)
-        .where(MaintenancePlan.active.is_(True))
-        .order_by(MaintenancePlan.next_due_date, MaintenancePlan.id)
-    ).all()
+    plans = db.execute(select(MaintenancePlan, Equipment).join(Equipment, Equipment.id == MaintenancePlan.equipment_id).where(MaintenancePlan.active.is_(True)).order_by(MaintenancePlan.next_due_date, MaintenancePlan.id)).all()
     today = date.today()
     result = []
     for plan, equipment in plans:
         date_due = plan.next_due_date is not None and plan.next_due_date <= today
-        meter_due = (
-            plan.next_due_meter is not None
-            and equipment.hour_meter is not None
-            and equipment.hour_meter >= plan.next_due_meter
-        )
+        meter_due = plan.next_due_meter is not None and equipment.hour_meter is not None and equipment.hour_meter >= plan.next_due_meter
         if date_due or meter_due:
-            schedule_status = (
-                "overdue"
-                if (
-                    (plan.next_due_date is not None and plan.next_due_date < today)
-                    or (
-                        plan.next_due_meter is not None
-                        and equipment.hour_meter is not None
-                        and equipment.hour_meter > plan.next_due_meter
-                    )
-                )
-                else "due"
-            )
+            schedule_status = "overdue" if ((plan.next_due_date is not None and plan.next_due_date < today) or (plan.next_due_meter is not None and equipment.hour_meter is not None and equipment.hour_meter > plan.next_due_meter)) else "due"
         else:
             schedule_status = "scheduled"
-        result.append(
-            MaintenanceScheduleStatusRead(
-                id=plan.id,
-                equipment_id=equipment.id,
-                equipment_name=equipment.name,
-                asset_code=equipment.asset_code,
-                name=plan.name,
-                next_due_date=plan.next_due_date,
-                next_due_meter=plan.next_due_meter,
-                current_meter=equipment.hour_meter,
-                status=schedule_status,
-            )
-        )
+        result.append(MaintenanceScheduleStatusRead(id=plan.id, equipment_id=equipment.id, equipment_name=equipment.name, asset_code=equipment.asset_code, name=plan.name, next_due_date=plan.next_due_date, next_due_meter=plan.next_due_meter, current_meter=equipment.hour_meter, status=schedule_status))
     return result
 
 
 @router.post("/work-orders", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)
-def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), _: object = Depends(require_write_user)):
-    if db.get(Equipment, payload.equipment_id) is None:
+def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
+    equipment = db.get(Equipment, payload.equipment_id)
+    if equipment is None:
         raise HTTPException(404, "Equipment not found")
     if payload.maintenance_plan_id is not None:
         plan = db.get(MaintenancePlan, payload.maintenance_plan_id)
@@ -225,34 +142,22 @@ def create_work_order(payload: WorkOrderCreate, db: Session = Depends(get_db), _
             raise HTTPException(404, "Maintenance plan not found")
         if plan.equipment_id != payload.equipment_id:
             raise HTTPException(400, "Maintenance plan does not belong to this equipment")
-        open_plan_order = db.scalar(
-            select(WorkOrder).where(
-                WorkOrder.maintenance_plan_id == payload.maintenance_plan_id,
-                WorkOrder.status.not_in(["completed", "verified", "closed", "cancelled"]),
-            )
-        )
+        open_plan_order = db.scalar(select(WorkOrder).where(WorkOrder.maintenance_plan_id == payload.maintenance_plan_id, WorkOrder.status.not_in(["completed", "verified", "closed", "cancelled"])))
         if open_plan_order is not None:
-            raise HTTPException(
-                status_code=409,
-                detail=f"An open work order already exists for this maintenance plan: {open_plan_order.work_order_number}",
-            )
+            raise HTTPException(status_code=409, detail=f"An open work order already exists for this maintenance plan: {open_plan_order.work_order_number}")
     if db.scalar(select(WorkOrder).where(WorkOrder.work_order_number == payload.work_order_number)):
         raise HTTPException(409, "Work order number already exists")
     order = WorkOrder(**payload.model_dump())
     db.add(order)
+    db.flush()
+    record_audit(db, action="create", entity_type="work_order", entity_id=order.id, description=f"Created work order {order.work_order_number} for {equipment.asset_code}", user=user)
     db.commit()
     db.refresh(order)
     return order
 
 
 @router.get("/work-orders", response_model=Page[WorkOrderRead])
-def list_work_orders(
-    status_filter: str | None = None,
-    equipment_id: int | None = None,
-    priority: str | None = None,
-    params: PageParams = Depends(),
-    db: Session = Depends(get_db),
-):
+def list_work_orders(status_filter: str | None = None, equipment_id: int | None = None, priority: str | None = None, params: PageParams = Depends(), db: Session = Depends(get_db)):
     query = select(WorkOrder).order_by(WorkOrder.id.desc())
     if status_filter:
         query = query.where(WorkOrder.status == status_filter)
@@ -272,33 +177,18 @@ def get_work_order(work_order_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/work-orders/{work_order_id}", response_model=WorkOrderRead)
-def update_work_order(
-    work_order_id: int,
-    payload: WorkOrderUpdate,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
+def update_work_order(work_order_id: int, payload: WorkOrderUpdate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
         raise HTTPException(404, "Work order not found")
     changes = payload.model_dump(exclude_unset=True)
-
+    old_status = order.status
     if "status" in changes and changes["status"] is not None:
         _validate_status_transition(order.status, changes["status"])
         if changes["status"] == "closed" and order.maintenance_type == "preventive":
-            incomplete = db.scalar(
-                select(func.count())
-                .select_from(WorkOrderTask)
-                .where(
-                    WorkOrderTask.work_order_id == work_order_id,
-                    WorkOrderTask.status != "done",
-                )
-            ) or 0
+            incomplete = db.scalar(select(func.count()).select_from(WorkOrderTask).where(WorkOrderTask.work_order_id == work_order_id, WorkOrderTask.status != "done")) or 0
             if incomplete:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Cannot close preventive work order with {incomplete} incomplete task(s)",
-                )
+                raise HTTPException(status_code=400, detail=f"Cannot close preventive work order with {incomplete} incomplete task(s)")
         now = datetime.now(timezone.utc)
         new_status = changes["status"]
         if new_status == "in_progress" and order.started_at is None:
@@ -309,18 +199,19 @@ def update_work_order(
             changes.setdefault("verified_at", now)
         elif new_status == "closed" and order.closed_at is None:
             changes.setdefault("closed_at", now)
-
     was_completed = order.status == "completed"
     for key, value in changes.items():
         setattr(order, key, value)
-
     if changes.get("status") == "completed" and not was_completed and order.maintenance_plan_id is not None:
         plan = db.get(MaintenancePlan, order.maintenance_plan_id)
         equipment = db.get(Equipment, order.equipment_id)
         if plan is not None and equipment is not None:
             service_date = order.completed_at.date() if order.completed_at is not None else date.today()
             _advance_plan(plan, equipment, service_date, equipment.hour_meter)
-
+    if changes:
+        action = "status_change" if "status" in changes and changes["status"] != old_status else "update"
+        description = f"Work order {order.work_order_number} status changed from '{old_status}' to '{order.status}'" if action == "status_change" else f"Updated work order {order.work_order_number}"
+        record_audit(db, action=action, entity_type="work_order", entity_id=order.id, description=description, user=user)
     db.commit()
     db.refresh(order)
     return order
@@ -336,40 +227,14 @@ def get_work_order_cost(work_order_id: int, db: Session = Depends(get_db)):
     for item in parts:
         if item.unit_cost is None:
             continue
-        returned = db.scalar(
-            select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(
-                PartTransaction.part_id == item.part_id,
-                PartTransaction.transaction_type == "in",
-                PartTransaction.reference == _part_reference(order.work_order_number, item.part_id),
-            )
-        ) or Decimal("0")
+        returned = db.scalar(select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(PartTransaction.part_id == item.part_id, PartTransaction.transaction_type == "in", PartTransaction.reference == _part_reference(order.work_order_number, item.part_id))) or Decimal("0")
         parts_cost += max(item.quantity - returned, Decimal("0")) * item.unit_cost
-    labor_cost = db.scalar(
-        select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(
-            WorkOrderLabor.work_order_id == work_order_id
-        )
-    ) or Decimal("0")
-    return WorkOrderCostRead(
-        work_order_id=order.id,
-        estimated_cost=order.estimated_cost,
-        parts_cost=parts_cost,
-        labor_cost=labor_cost,
-        total_cost=parts_cost + labor_cost,
-        recorded_actual_cost=order.actual_cost,
-    )
+    labor_cost = db.scalar(select(func.coalesce(func.sum(WorkOrderLabor.hours * WorkOrderLabor.hourly_rate), 0)).where(WorkOrderLabor.work_order_id == work_order_id)) or Decimal("0")
+    return WorkOrderCostRead(work_order_id=order.id, estimated_cost=order.estimated_cost, parts_cost=parts_cost, labor_cost=labor_cost, total_cost=parts_cost + labor_cost, recorded_actual_cost=order.actual_cost)
 
 
-@router.post(
-    "/work-orders/{work_order_id}/parts",
-    response_model=WorkOrderPartRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def add_work_order_part(
-    work_order_id: int,
-    payload: WorkOrderPartCreate,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
+@router.post("/work-orders/{work_order_id}/parts", response_model=WorkOrderPartRead, status_code=status.HTTP_201_CREATED)
+def add_work_order_part(work_order_id: int, payload: WorkOrderPartCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
         raise HTTPException(404, "Work order not found")
@@ -379,33 +244,17 @@ def add_work_order_part(
     inventory = db.scalar(select(Inventory).where(Inventory.part_id == payload.part_id))
     if inventory is None or inventory.quantity_on_hand < payload.quantity:
         raise HTTPException(400, "Insufficient stock")
-    if db.scalar(
-        select(WorkOrderPart).where(
-            WorkOrderPart.work_order_id == work_order_id, WorkOrderPart.part_id == payload.part_id
-        )
-    ):
+    if db.scalar(select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id, WorkOrderPart.part_id == payload.part_id)):
         raise HTTPException(409, "Part already added to this work order")
     unit_cost = payload.unit_cost if payload.unit_cost is not None else part.unit_cost
     inventory.quantity_on_hand -= payload.quantity
-    item = WorkOrderPart(
-        work_order_id=work_order_id,
-        part_id=payload.part_id,
-        quantity=payload.quantity,
-        unit_cost=unit_cost,
-    )
+    item = WorkOrderPart(work_order_id=work_order_id, part_id=payload.part_id, quantity=payload.quantity, unit_cost=unit_cost)
     db.add(item)
-    db.add(
-        PartTransaction(
-            part_id=payload.part_id,
-            transaction_type="out",
-            quantity=payload.quantity,
-            unit_cost=unit_cost,
-            reference=_part_reference(order.work_order_number, payload.part_id),
-            notes=f"Issued to work order {order.work_order_number}",
-        )
-    )
+    db.add(PartTransaction(part_id=payload.part_id, transaction_type="out", quantity=payload.quantity, unit_cost=unit_cost, reference=_part_reference(order.work_order_number, payload.part_id), notes=f"Issued to work order {order.work_order_number}"))
     if unit_cost is not None:
         order.actual_cost = (order.actual_cost or 0) + payload.quantity * unit_cost
+    db.flush()
+    record_audit(db, action="transaction", entity_type="inventory", entity_id=payload.part_id, description=f"Issued {payload.quantity} of part {part.name} to work order {order.work_order_number}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -415,24 +264,11 @@ def add_work_order_part(
 def list_work_order_parts(work_order_id: int, db: Session = Depends(get_db)):
     if db.get(WorkOrder, work_order_id) is None:
         raise HTTPException(404, "Work order not found")
-    return list(
-        db.scalars(
-            select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id).order_by(WorkOrderPart.id)
-        ).all()
-    )
+    return list(db.scalars(select(WorkOrderPart).where(WorkOrderPart.work_order_id == work_order_id).order_by(WorkOrderPart.id)).all())
 
 
-@router.post(
-    "/work-orders/{work_order_id}/parts/{work_order_part_id}/return",
-    response_model=WorkOrderPartRead,
-)
-def return_work_order_part(
-    work_order_id: int,
-    work_order_part_id: int,
-    payload: WorkOrderPartReturn,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
+@router.post("/work-orders/{work_order_id}/parts/{work_order_part_id}/return", response_model=WorkOrderPartRead)
+def return_work_order_part(work_order_id: int, work_order_part_id: int, payload: WorkOrderPartReturn, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
         raise HTTPException(404, "Work order not found")
@@ -440,53 +276,33 @@ def return_work_order_part(
     if item is None or item.work_order_id != work_order_id:
         raise HTTPException(404, "Work order part not found")
     reference = _part_reference(order.work_order_number, item.part_id)
-    returned = db.scalar(
-        select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(
-            PartTransaction.part_id == item.part_id,
-            PartTransaction.transaction_type == "in",
-            PartTransaction.reference == reference,
-        )
-    ) or 0
+    returned = db.scalar(select(func.coalesce(func.sum(PartTransaction.quantity), 0)).where(PartTransaction.part_id == item.part_id, PartTransaction.transaction_type == "in", PartTransaction.reference == reference)) or 0
     if payload.quantity > item.quantity - returned:
         raise HTTPException(400, "Return quantity exceeds remaining issued quantity")
     inventory = db.scalar(select(Inventory).where(Inventory.part_id == item.part_id))
     if inventory is None:
         raise HTTPException(404, "Inventory record not found")
     inventory.quantity_on_hand += payload.quantity
-    db.add(
-        PartTransaction(
-            part_id=item.part_id,
-            transaction_type="in",
-            quantity=payload.quantity,
-            unit_cost=item.unit_cost,
-            reference=reference,
-            notes=payload.notes or f"Returned from work order {order.work_order_number}",
-        )
-    )
+    db.add(PartTransaction(part_id=item.part_id, transaction_type="in", quantity=payload.quantity, unit_cost=item.unit_cost, reference=reference, notes=payload.notes or f"Returned from work order {order.work_order_number}"))
     if item.unit_cost is not None:
         order.actual_cost = max((order.actual_cost or 0) - payload.quantity * item.unit_cost, 0)
+    db.flush()
+    record_audit(db, action="transaction", entity_type="inventory", entity_id=item.part_id, description=f"Returned {payload.quantity} of part #{item.part_id} from work order {order.work_order_number}", user=user)
     db.commit()
     db.refresh(item)
     return item
 
 
-@router.post(
-    "/work-orders/{work_order_id}/labor",
-    response_model=WorkOrderLaborRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def add_work_order_labor(
-    work_order_id: int,
-    payload: WorkOrderLaborCreate,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
+@router.post("/work-orders/{work_order_id}/labor", response_model=WorkOrderLaborRead, status_code=status.HTTP_201_CREATED)
+def add_work_order_labor(work_order_id: int, payload: WorkOrderLaborCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     order = db.get(WorkOrder, work_order_id)
     if order is None:
         raise HTTPException(404, "Work order not found")
     item = WorkOrderLabor(work_order_id=work_order_id, **payload.model_dump())
     db.add(item)
     order.actual_cost = (order.actual_cost or 0) + payload.hours * payload.hourly_rate
+    db.flush()
+    record_audit(db, action="create", entity_type="work_order_labor", entity_id=item.id, description=f"Added {payload.hours} labor hours to work order {order.work_order_number}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -496,28 +312,18 @@ def add_work_order_labor(
 def list_work_order_labor(work_order_id: int, db: Session = Depends(get_db)):
     if db.get(WorkOrder, work_order_id) is None:
         raise HTTPException(404, "Work order not found")
-    return list(
-        db.scalars(
-            select(WorkOrderLabor).where(WorkOrderLabor.work_order_id == work_order_id).order_by(WorkOrderLabor.id)
-        ).all()
-    )
+    return list(db.scalars(select(WorkOrderLabor).where(WorkOrderLabor.work_order_id == work_order_id).order_by(WorkOrderLabor.id)).all())
 
 
-@router.post(
-    "/work-orders/{work_order_id}/tasks",
-    response_model=WorkOrderTaskRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def add_work_order_task(
-    work_order_id: int,
-    payload: WorkOrderTaskCreate,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
-    if db.get(WorkOrder, work_order_id) is None:
+@router.post("/work-orders/{work_order_id}/tasks", response_model=WorkOrderTaskRead, status_code=status.HTTP_201_CREATED)
+def add_work_order_task(work_order_id: int, payload: WorkOrderTaskCreate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
+    order = db.get(WorkOrder, work_order_id)
+    if order is None:
         raise HTTPException(404, "Work order not found")
     item = WorkOrderTask(work_order_id=work_order_id, **payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="work_order_task", entity_id=item.id, description=f"Added task to work order {order.work_order_number}: {item.description}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -527,29 +333,20 @@ def add_work_order_task(
 def list_work_order_tasks(work_order_id: int, db: Session = Depends(get_db)):
     if db.get(WorkOrder, work_order_id) is None:
         raise HTTPException(404, "Work order not found")
-    return list(
-        db.scalars(
-            select(WorkOrderTask).where(WorkOrderTask.work_order_id == work_order_id).order_by(WorkOrderTask.id)
-        ).all()
-    )
+    return list(db.scalars(select(WorkOrderTask).where(WorkOrderTask.work_order_id == work_order_id).order_by(WorkOrderTask.id)).all())
 
 
-@router.patch(
-    "/work-orders/{work_order_id}/tasks/{task_id}",
-    response_model=WorkOrderTaskRead,
-)
-def update_work_order_task(
-    work_order_id: int,
-    task_id: int,
-    payload: WorkOrderTaskUpdate,
-    db: Session = Depends(get_db),
-    _: object = Depends(require_write_user),
-):
+@router.patch("/work-orders/{work_order_id}/tasks/{task_id}", response_model=WorkOrderTaskRead)
+def update_work_order_task(work_order_id: int, task_id: int, payload: WorkOrderTaskUpdate, db: Session = Depends(get_db), user: User | None = Depends(require_write_user)):
     item = db.get(WorkOrderTask, task_id)
     if item is None or item.work_order_id != work_order_id:
         raise HTTPException(404, "Task not found")
+    old_status = item.status
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
+    order = db.get(WorkOrder, work_order_id)
+    action = "status_change" if "status" in payload.model_dump(exclude_unset=True) and item.status != old_status else "update"
+    record_audit(db, action=action, entity_type="work_order_task", entity_id=item.id, description=f"Updated task on work order {order.work_order_number if order else work_order_id}", user=user)
     db.commit()
     db.refresh(item)
     return item

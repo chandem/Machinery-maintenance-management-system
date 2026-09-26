@@ -57,6 +57,7 @@ export default function AuditLogPage() {
               <option value="status_change">Status change</option>
               <option value="delete">Delete</option>
               <option value="transaction">Transaction</option>
+              <option value="service_complete">Service complete</option>
             </select>
           </label>
           <label>Entity
@@ -67,6 +68,12 @@ export default function AuditLogPage() {
               <option value="maintenance_plan">Maintenance plan</option>
               <option value="inventory">Inventory</option>
               <option value="fuel">Fuel</option>
+              <option value="inspection">Inspection</option>
+              <option value="downtime">Downtime</option>
+              <option value="supplier">Supplier</option>
+              <option value="part">Part</option>
+              <option value="work_order_labor">Work-order labor</option>
+              <option value="work_order_task">Work-order task</option>
             </select>
           </label>
           <div style={{ display: "flex", alignItems: "end", gap: "0.5rem" }}>

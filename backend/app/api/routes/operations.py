@@ -12,6 +12,7 @@ from app.models.equipment import Equipment, MeterReading
 from app.models.operations import DowntimeEvent, FuelRecord, Inspection
 from app.models.maintenance import WorkOrder, WorkOrderLabor, WorkOrderPart
 from app.models.user import User
+from app.services.audit import record_audit
 from app.schemas.operations import (
     DowntimeCreate,
     DowntimeRead,
@@ -37,12 +38,14 @@ router = APIRouter(tags=["Operations"])
 def create_inspection(
     payload: InspectionCreate,
     db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
+    user: User | None = Depends(require_write_user),
 ):
     if db.get(Equipment, payload.equipment_id) is None:
         raise HTTPException(404, "Equipment not found")
     item = Inspection(**payload.model_dump())
     db.add(item)
+    db.flush()
+    record_audit(db, action="create", entity_type="inspection", entity_id=item.id, description=f"Created inspection for equipment {payload.equipment_id}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -76,13 +79,14 @@ def update_inspection(
     inspection_id: int,
     payload: InspectionUpdate,
     db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
+    user: User | None = Depends(require_write_user),
 ):
     item = db.get(Inspection, inspection_id)
     if item is None:
         raise HTTPException(404, "Inspection not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
+    record_audit(db, action="update", entity_type="inspection", entity_id=item.id, description=f"Updated inspection #{item.id}", user=user)
     db.commit()
     db.refresh(item)
     return item
@@ -92,13 +96,14 @@ def update_inspection(
 def create_fuel_record(
     payload: FuelRecordCreate,
     db: Session = Depends(get_db),
-    _: User | None = Depends(require_write_user),
+    user: User | None = Depends(require_write_user),
 ):
     equipment = db.get(Equipment, payload.equipment_id)
     if equipment is None:
         raise HTTPException(404, "Equipment not found")
     item = FuelRecord(**payload.model_dump())
     db.add(item)
+    db.flush()
     if payload.hour_meter is not None and (
         equipment.hour_meter is None or payload.hour_meter > equipment.hour_meter
     ):
@@ -107,6 +112,7 @@ def create_fuel_record(
         equipment.odometer is None or payload.odometer > equipment.odometer
     ):
         equipment.odometer = payload.odometer
+    record_audit(db, action="create", entity_type="fuel", entity_id=item.id, description=f"Recorded {payload.quantity} {payload.unit} fuel for {equipment.asset_code}", user=user)
     db.commit()
     db.refresh(item)
     return item

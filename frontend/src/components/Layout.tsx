@@ -63,9 +63,14 @@ export default function Layout() {
             </NavLink>
           ))}
           {(user?.role === "admin" || user?.role === "manager") && (
-            <NavLink to="/users" className={({ isActive }) => (isActive ? "active" : "")}>
-              Users
-            </NavLink>
+            <>
+              <NavLink to="/audit" className={({ isActive }) => (isActive ? "active" : "")}>
+                Audit Trail
+              </NavLink>
+              <NavLink to="/users" className={({ isActive }) => (isActive ? "active" : "")}>
+                Users
+              </NavLink>
+            </>
           )}
         </nav>
         <div className="sidebar-footer">

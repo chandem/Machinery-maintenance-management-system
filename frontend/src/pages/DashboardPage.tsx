@@ -22,17 +22,31 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [s, st, eq, an] = await Promise.all([
+        const [summaryResult, scheduleResult, equipmentResult, analyticsResult] = await Promise.allSettled([
           api.get<DashboardSummary>("/api/v1/dashboard/summary"),
           api.get<MaintenanceScheduleStatus[]>("/api/v1/maintenance-plans/status"),
           api.get<{ items: Equipment[] }>("/api/v1/equipment?page=1&page_size=100"),
           api.get<MaintenanceAnalytics>("/api/v1/maintenance/analytics"),
         ]);
         if (!cancelled) {
+          if (summaryResult.status === "rejected") {
+            throw summaryResult.reason;
+          }
+
+          const s = summaryResult.value;
+          const st = scheduleResult.status === "fulfilled" ? scheduleResult.value : [];
+          const eq = equipmentResult.status === "fulfilled" ? equipmentResult.value : { items: [] };
+          const an = analyticsResult.status === "fulfilled" ? analyticsResult.value : null;
+
           setSummary(s);
           setEquipment(eq.items);
           setSchedule(st.filter((x) => x.status === "due" || x.status === "overdue").slice(0, 8));
-          const results = await Promise.all(
+
+          if (analyticsResult.status === "rejected") {
+            console.warn("Maintenance analytics unavailable:", analyticsResult.reason);
+          }
+
+          const results = await Promise.allSettled(
             eq.items.map(async (asset) => {
               const [maintenancePerformance, downtimeSummary] = await Promise.all([
                 api.get<MaintenancePerformance>(`/api/v1/maintenance/performance?equipment_id=${asset.id}`),
@@ -41,10 +55,14 @@ export default function DashboardPage() {
               return { equipment: asset, maintenancePerformance, downtimeSummary };
             })
           );
-          setPerformance(results
+          const successfulResults = results
+            .filter((result): result is PromiseFulfilledResult<{ equipment: Equipment; maintenancePerformance: MaintenancePerformance; downtimeSummary: DowntimeSummary }> => result.status === "fulfilled")
+            .map((result) => result.value);
+
+          setPerformance(successfulResults
             .map(({ equipment, maintenancePerformance }) => ({ equipment, ...maintenancePerformance }))
             .filter((x) => x.breakdown_events > 0));
-          setDowntime(results
+          setDowntime(successfulResults
             .map(({ equipment, downtimeSummary }) => ({ equipment, ...downtimeSummary }))
             .filter((x) => x.total_events > 0)
             .sort((a, b) => Number(b.total_hours) - Number(a.total_hours)));
